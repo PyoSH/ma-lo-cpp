@@ -1,0 +1,4 @@
+/home/pyo/Downloads/clion-2024.2.0.1/bin/cmake/linux/x64/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MAKE_PROGRAM=/home/pyo/Downloads/clion-2024.2.0.1/bin/ninja/linux/x64/ninja -G Ninja -S /home/pyo/CLionProjects/ma-lo-cpp -B /home/pyo/CLionProjects/ma-lo-cpp/cmake-build-debug
+-- Configuring done (0.0s)
+-- Generating done (0.0s)
+-- Build files have been written to: /home/pyo/CLionProjects/ma-lo-cpp/cmake-build-debug
