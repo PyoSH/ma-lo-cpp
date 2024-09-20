@@ -1,4 +1,4 @@
-#include "mapping/src/map_RT.h"
+#include "src/map_RT.h"
 
 std::deque<Eigen::Matrix4f> vec_poses;
 std::deque<double> vec_poses_time;

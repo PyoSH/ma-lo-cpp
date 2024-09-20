@@ -24,7 +24,7 @@ find_package(Eigen3 REQUIRED)
 
 find_package(PCL REQUIRED)
 
-add_executable(mapping_test main.cpp
+add_executable(mapping_test mapping/main.cpp
         mapping/src/map_RT.cpp
         mapping/src/map_RT.h)
 target_link_libraries(mapping_test
