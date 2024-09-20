@@ -43,11 +43,27 @@ void check_data() {
     }
 }
 
+
 void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg) {
-    // int pointNum = msg.data
+    pcl::PointCloud<pcl::PointXYZ>::Ptr pc_xyz(new pcl::PointCloud<pcl::PointXYZ>);
+    int pointNum = pc_xyz->points.size();
 
+    Eigen::Matrix4Xf eigenScan = Eigen::Matrix4Xf::Ones(4, 1);
+    int usefulPoint =0;
+    for(int i = 0; i < pointNum; i++) {
+        pcl::PointXYZ currPoint = pc_xyz->points[i];
+        float dist = sqrt(pow(currPoint.x,2) + pow(currPoint.y,2) + pow(currPoint.z,2));
+        if(0.2 < dist && dist < 5) {
+            eigenScan(0,usefulPoint) = currPoint.x;
+            eigenScan(1,usefulPoint) = currPoint.y;
+            eigenScan(2,usefulPoint) = currPoint.z;
+            eigenScan(3,usefulPoint) = 1;
+            usefulPoint++;
+        }
+    }
 
-
+    vec_poses.emplace_back(Eigen::Matrix4f(eigenScan));
+    vec_scan_time.emplace_back(msg->header.stamp.toSec());
     check_data();
 }
 
@@ -61,7 +77,16 @@ void callback_pose(const nav_msgs::Odometry::ConstPtr& msg) {
                  m[1][0], m[1][1], m[1][2], msg->pose.pose.position.y,
                  m[2][0], m[2][1], m[2][2], msg->pose.pose.position.z,
                  0, 0, 0, 1;
-    vec_poses.push_back(eigenPose);
-    vec_poses_time.push_back(msg->header.stamp.toSec());
+    vec_poses.emplace_back(eigenPose);
+    vec_poses_time.emplace_back(msg->header.stamp.toSec());
     check_data();
+}
+
+int getPointCloudSizeFromData(const sensor_msgs::PointCloud2& msg) {
+    // data 배열의 크기를 point_step(각 점이 차지하는 바이트 수)으로 나눔
+    if (msg.point_step > 0) {
+        return msg.data.size() / msg.point_step;
+    } else {
+        return 0;  // point_step이 0이면 잘못된 데이터
+    }
 }
