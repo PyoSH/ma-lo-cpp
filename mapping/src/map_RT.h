@@ -38,7 +38,7 @@ private:
 public:
     map_rt();
     ~map_rt();
-    void updateMap(Eigen::Matrix4f pose, Eigen::Matrix4f scan);
+    void updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan);
 };
 
 #endif //MAP_RT_H

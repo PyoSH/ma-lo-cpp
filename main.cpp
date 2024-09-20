@@ -2,7 +2,7 @@
 
 std::deque<Eigen::Matrix4f> vec_poses;
 std::deque<double> vec_poses_time;
-std::deque<Eigen::Matrix4f> vec_scan;
+std::deque<Eigen::Matrix4Xf> vec_scan;
 std::deque<double> vec_scan_time;
 
 map_rt mapGenerator;
@@ -59,21 +59,28 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg) {
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_xyz(new pcl::PointCloud<pcl::PointXYZ>);
     int pointNum = pc_xyz->points.size();
     Eigen::Matrix4Xf eigenScan = Eigen::Matrix4Xf::Ones(4, 1);
-    int usefulPoint =0;
-
+    int usefulPoint = 0;
+    std::cout<<"CB - SCAN 1"<<std::endl;
     for(int i = 0; i < pointNum; i++) {
+        std::cout<<"CB - SCAN 2"<<std::endl;
         pcl::PointXYZ currPoint = pc_xyz->points[i];
+        std::cout<<"CB - SCAN 3"<<std::endl;
         float dist = sqrt(pow(currPoint.x,2) + pow(currPoint.y,2) + pow(currPoint.z,2));
         if(0.2 < dist && dist < 5) {
+            std::cout<<"CB - SCAN if case 1"<<std::endl;
             usefulPoint++;
             eigenScan.conservativeResize(4, usefulPoint);
+            std::cout<<"CB - SCAN if case 2"<<std::endl;
             eigenScan(0,usefulPoint-1) = currPoint.x;
             eigenScan(1,usefulPoint-1) = currPoint.y;
             eigenScan(2,usefulPoint-1) = currPoint.z;
             eigenScan(3,usefulPoint-1) = 1;
+            std::cout<<"CB - SCAN if case 3"<<std::endl;
         }
     }
-    vec_poses.emplace_back(eigenScan);
+    std::cout<<"CB - SCAN 4"<<std::endl;
+    vec_scan.emplace_back(eigenScan);
+    std::cout<<"CB - SCAN 5"<<std::endl;
     vec_scan_time.emplace_back(msg->header.stamp.toSec());
     check_data();
     std::cout<<"CB - SCAN END"<<std::endl;

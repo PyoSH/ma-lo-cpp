@@ -1,8 +1,8 @@
 #include "map_RT.h"
 
 map_rt::map_rt() {
-    mapWidth = 300;
-    mapHeight = 300;
+    mapWidth = 100;
+    mapHeight = 100;
     mapResolution = 0.05; // meter per pixel
     mapCenterX= 0;
     mapCenterY= 0;
@@ -21,7 +21,7 @@ map_rt::~map_rt() {
 /*
  * 여기에서 점군 처리 등을 다 해야 한다.
  */
-void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4f scan) {
+void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan) {
     int poseX, poseY;
     poseX = static_cast<int>(pose(0,3) - mapCenterX + ((mapWidth * mapResolution)/2)/mapResolution);
     poseY = static_cast<int>(pose(1,3) - mapCenterY + ((mapWidth * mapResolution)/2)/mapResolution);
