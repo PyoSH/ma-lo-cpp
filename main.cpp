@@ -15,7 +15,7 @@ int main(int argc,char **argv) {
     std::cout<<ros::this_node::getName()<<std::endl;
     ros::NodeHandle nh;
 
-    ros::Subscriber sub_scan = nh.subscribe<sensor_msgs::PointCloud2>("/scan", 100, callback_scan);
+    ros::Subscriber sub_scan = nh.subscribe<sensor_msgs::PointCloud2>("/F/depth/color/points", 100, callback_scan);
     ros::Subscriber sub_pose = nh.subscribe<nav_msgs::Odometry>("/b1_controller/odom", 100, callback_pose);
 
     ros::spin();
@@ -23,9 +23,15 @@ int main(int argc,char **argv) {
     return 0;
 }
 
+/*
+ * 현재) 발행 시간에 기반해서 데이터를 쳐낸다(시동기화)
+ * 희망) 지도 작성에 사용된 이전 포즈 & 현재 포즈의 유클리드 거리로 거르는 조건도 추가하자.
+ */
 void check_data() {
-    while((vec_poses_time.size() != 0 && vec_scan.size() != 0)) {
+    std::cout<<"check data init"<<std::endl;
+    while(!vec_poses.empty() && !vec_scan.empty()) {
         if(fabs(vec_poses_time[0] - vec_scan_time[0]) > 0.1) {
+            std::cout<<"check data - if case"<<std::endl;
             if(vec_poses_time[0] > vec_scan_time[0]) {
                 vec_scan.pop_front();
                 vec_scan_time.pop_front();
@@ -34,6 +40,7 @@ void check_data() {
                 vec_poses_time.pop_front();
             }
         }else {
+            std::cout<<"check data - else case"<<std::endl;
             mapGenerator.updateMap(vec_poses[0], vec_scan[0]);
             vec_scan.pop_front();
             vec_scan_time.pop_front();
@@ -41,34 +48,39 @@ void check_data() {
             vec_poses_time.pop_front();
         }
     }
+    std::cout<<"check data END"<<std::endl;
 }
 
-
+/*
+ * 3D 점군 받았을 때 deque 구조로 넣을 수 있도록 하기
+ */
 void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg) {
+    std::cout<<"CB - SCAN init"<<std::endl;
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_xyz(new pcl::PointCloud<pcl::PointXYZ>);
     int pointNum = pc_xyz->points.size();
-
     Eigen::Matrix4Xf eigenScan = Eigen::Matrix4Xf::Ones(4, 1);
     int usefulPoint =0;
+
     for(int i = 0; i < pointNum; i++) {
         pcl::PointXYZ currPoint = pc_xyz->points[i];
         float dist = sqrt(pow(currPoint.x,2) + pow(currPoint.y,2) + pow(currPoint.z,2));
         if(0.2 < dist && dist < 5) {
-            eigenScan(0,usefulPoint) = currPoint.x;
-            eigenScan(1,usefulPoint) = currPoint.y;
-            eigenScan(2,usefulPoint) = currPoint.z;
-            eigenScan(3,usefulPoint) = 1;
             usefulPoint++;
+            eigenScan.conservativeResize(4, usefulPoint);
+            eigenScan(0,usefulPoint-1) = currPoint.x;
+            eigenScan(1,usefulPoint-1) = currPoint.y;
+            eigenScan(2,usefulPoint-1) = currPoint.z;
+            eigenScan(3,usefulPoint-1) = 1;
         }
     }
-
-    vec_poses.emplace_back(Eigen::Matrix4f(eigenScan));
+    vec_poses.emplace_back(eigenScan);
     vec_scan_time.emplace_back(msg->header.stamp.toSec());
     check_data();
+    std::cout<<"CB - SCAN END"<<std::endl;
 }
 
-
 void callback_pose(const nav_msgs::Odometry::ConstPtr& msg) {
+    std::cout<<"CB - POSE init"<<std::endl;
     Eigen::Matrix4f eigenPose;
 
     tf::Quaternion quat(msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
@@ -80,13 +92,5 @@ void callback_pose(const nav_msgs::Odometry::ConstPtr& msg) {
     vec_poses.emplace_back(eigenPose);
     vec_poses_time.emplace_back(msg->header.stamp.toSec());
     check_data();
-}
-
-int getPointCloudSizeFromData(const sensor_msgs::PointCloud2& msg) {
-    // data 배열의 크기를 point_step(각 점이 차지하는 바이트 수)으로 나눔
-    if (msg.point_step > 0) {
-        return msg.data.size() / msg.point_step;
-    } else {
-        return 0;  // point_step이 0이면 잘못된 데이터
-    }
+    std::cout<<"CB - POSE END"<<std::endl;
 }

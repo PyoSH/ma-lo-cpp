@@ -24,7 +24,7 @@ map_rt::~map_rt() {
 void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4f scan) {
     int poseX, poseY;
     poseX = static_cast<int>(pose(0,3) - mapCenterX + ((mapWidth * mapResolution)/2)/mapResolution);
-    poseY = static_cast<int>(pose(0,3) - mapCenterY + ((mapWidth * mapResolution)/2)/mapResolution);
+    poseY = static_cast<int>(pose(1,3) - mapCenterY + ((mapWidth * mapResolution)/2)/mapResolution);
 
     cv::Mat showMap;
     cv::cvtColor(gridMap, showMap, cv::COLOR_GRAY2RGB);
