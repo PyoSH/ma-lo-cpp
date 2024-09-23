@@ -66,6 +66,8 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan) {
         }
     }
 
+    std::string text1 = "Current points: " + std::to_string(pcTransformed.cols());
+    cv::putText(showMap, text1, cv::Point(10, mapHeight - 100), cv::FONT_HERSHEY_PLAIN, 2, cv::Scalar(255, 255, 255), 2);
     cv::imshow("current Map", showMap);
     cv::imshow("Map", gridMap);
     cv::Mat image_new = gridMap.clone();
