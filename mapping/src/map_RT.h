@@ -14,6 +14,7 @@
 
 #include <pcl/point_types.h>  // 포인트 타입 정의
 #include <pcl/point_cloud.h>  // 포인트 클라우드 클래스
+#include <pcl_conversions/pcl_conversions.h>  // ros msg -> point cloud
 #include <pcl/filters/voxel_grid.h>  // 다운샘플링 필터
 #include <pcl/filters/passthrough.h>  // 범위 필터
 #include <pcl/filters/statistical_outlier_removal.h>  // 이상치 제거 필터
@@ -31,6 +32,11 @@ private:
     float mapResolution; // meter per pixel
     float mapCenterX;
     float mapCenterY;
+
+    float roll_rad;
+    float pitch_rad;
+    float yaw_rad;
+    Eigen::Matrix3f rotation;
 
     cv::Mat gridMap;
     Eigen::Matrix4f tf_pc2robot;

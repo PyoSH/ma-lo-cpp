@@ -1,9 +1,9 @@
 #include "map_RT.h"
 
 map_rt::map_rt() {
-    mapWidth = 100;
-    mapHeight = 100;
-    mapResolution = 1; // meter per pixel
+    mapWidth = 800;
+    mapHeight = 800;
+    mapResolution = 0.1; //  meter per pixel
     mapCenterX= 0;
     mapCenterY= 0;
 
@@ -13,12 +13,13 @@ map_rt::map_rt() {
     //                 0, 1, 0, 0,
     //                 0, 0, 1, 0,
     //                 0, 0, 0, 1;
-    // float roll_rad = -90* 4.0 * atan (1.0) / 180.0;
-    float roll_rad = -90 * M_PI / 180.0;
-    float pitch_rad = 0;
-    // float yaw_rad = -90* 4.0 * atan (1.0) / 180.0;
-    float yaw_rad = -90 * M_PI / 180.0;
-    Eigen::Matrix3f rotation = get_rotation_matrix(roll_rad, pitch_rad, yaw_rad);
+    // roll_rad = -90 * M_PI / 180.0;
+    // pitch_rad = 0;
+    // yaw_rad = -90 * M_PI / 180.0;
+    roll_rad = -90 * M_PI / 180.0;
+    pitch_rad = 0;
+    yaw_rad = -90 * M_PI / 180.0;
+    rotation = get_rotation_matrix(roll_rad, pitch_rad, yaw_rad);
     tf_pc2robot.block<3,3>(0,0) << rotation;
     tf_pc2robot(0,3) = 0;
     tf_pc2robot(1,3) = 0;
@@ -27,7 +28,6 @@ map_rt::map_rt() {
 
 }
 map_rt::~map_rt() {
-
 }
 
 /*
@@ -35,8 +35,9 @@ map_rt::~map_rt() {
  */
 void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan) {
     int poseX, poseY;
-    poseX = static_cast<int>(pose(0,3) - mapCenterX + ((mapWidth * mapResolution)/2)/mapResolution);
-    poseY = static_cast<int>(pose(1,3) - mapCenterY + ((mapWidth * mapResolution)/2)/mapResolution);
+    poseX = static_cast<int>((pose(0,3) - mapCenterX + ((mapWidth * mapResolution)/2))/mapResolution);
+    poseY = static_cast<int>((pose(1,3) - mapCenterY + ((mapHeight * mapResolution)/2))/mapResolution);
+    std::cout << "origin " << pose(0,3) << " "<< pose(1,3) <<" || " <<poseX << " " << poseY << std::endl;
 
     cv::Mat showMap;
     cv::cvtColor(gridMap, showMap, cv::COLOR_GRAY2RGB);
@@ -45,17 +46,17 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan) {
 
     scan = pose * tf_pc2robot * scan;
     pcTransformed = scan;
-
+    std::cout << "UPDATE - pc cnt:"<< pcTransformed.cols() << std::endl;
     for(int i=0; i<pcTransformed.cols(); i++) {
         int scanX;
         int scanY;
-        scanX = static_cast<int>(pcTransformed(0,i) - mapCenterX + ((mapWidth * mapResolution)/2)/mapResolution);
-        scanY = static_cast<int>(pcTransformed(1,i) - mapCenterY + ((mapHeight * mapResolution)/2)/mapResolution);
+        scanX = static_cast<int>((pcTransformed(0,i) - mapCenterX + ((mapWidth * mapResolution)/2))/mapResolution);
+        scanY = static_cast<int>((pcTransformed(1,i) - mapCenterY + ((mapHeight * mapResolution)/2))/mapResolution);
 
-        if(scanX >=0 && scanX < gridMap.cols && scanY >=0 && scanY < gridMap.rows) {
+        if(0 <= scanX && scanX < gridMap.cols && scanY >=0 && scanY < gridMap.rows) {
             cv::circle(showMap, cv::Point(scanX, scanY), 1, cv::Scalar(0, 0, 255), -1);
             cv::LineIterator it(gridMap, cv::Point(poseX, poseY), cv::Point(scanX, scanY), 8, cv::LINE_AA);
-
+            // std::cout << "pc cnt:"<< pcTransformed.cols() << "|| it cnt:" << it.count << std::endl;
             for(int j=0; j<it.count-1; j++) {
                 gridMap.at<float>(it.pos()) = gridMap.at<float>(it.pos()) + 0.02;
                 it++;
@@ -67,9 +68,9 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan) {
 
     cv::imshow("current Map", showMap);
     cv::imshow("Map", gridMap);
-    // cv::Mat image_new = gridMap.clone();
-    // image_new.convertTo(image_new, CV_8UC3, 255.0);
-    // cv::imwrite("map.png", image_new);
+    cv::Mat image_new = gridMap.clone();
+    image_new.convertTo(image_new, CV_8UC3, 255.0);
+    cv::imwrite("map.png", image_new);
     cv::waitKey(1);
 }
 

@@ -23,6 +23,8 @@ find_package(Eigen3 REQUIRED)
 #include_directories(${Eigen_INCLUDE_DIRS})
 
 find_package(PCL REQUIRED)
+find_package(pcl_conversions)
+find_package(pcl_ros)
 
 add_executable(mapping_test mapping/main.cpp
         mapping/src/map_RT.cpp
