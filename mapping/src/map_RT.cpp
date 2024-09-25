@@ -6,6 +6,7 @@ map_rt::map_rt() {
     mapResolution = 0.1; //  meter per pixel
     mapCenterX= 0;
     mapCenterY= 0;
+    mapCenterZ= 0;
     occuGridIncrease = 0.02;
     occuGridDecrease = -0.01;
 
@@ -33,38 +34,51 @@ map_rt::~map_rt() {
 }
 
 /*
- * 여기에서 점군 처리 등을 다 해야 한다.
+ * 우선 2차원으로 진행. 그래도 3차원으로도 바로 될듯?
  */
 void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, float t1, float t2) {
-    int poseX, poseY;
-    poseX = static_cast<int>((pose(0,3) - mapCenterX + ((mapWidth * mapResolution)/2))/mapResolution);
-    poseY = static_cast<int>((pose(1,3) - mapCenterY + ((mapHeight * mapResolution)/2))/mapResolution);
-    std::cout << "origin " << pose(0,3) << " "<< pose(1,3) <<" || " <<poseX << " " << poseY << std::endl;
+    
+    if(!is1stPose){
+        mapCenterX = pose(0,3);
+        mapCenterY = pose(1,3);
+        mapCenterZ = pose(2,3);
+        is1stPose = true;
+    }
+
+    int poseX_px, poseY_px;
+    // poseX_px = static_cast<int>((pose(0,3) - mapCenterX + ((mapWidth * mapResolution)/2))/mapResolution);
+    // poseY_px = static_cast<int>((pose(1,3) - mapCenterY + ((mapHeight * mapResolution)/2))/mapResolution);
+    poseX_px = static_cast<int>((pose(0,3) - mapCenterX) / mapResolution + (mapWidth / 2));
+    poseY_px = static_cast<int>((pose(1,3) - mapCenterY) / mapResolution + (mapHeight / 2));
+    // poseZ = static_cast<int>((pose(2,3) - mapCenterZ + ((mapDepth * mapResolution)/2))/mapResolution);
+    std::cout << "origin " << pose(0,3) << " "<< pose(1,3) <<" || " <<poseX_px << " " << poseY_px << std::endl;
 
     cv::Mat showMap;
     cv::cvtColor(gridMap, showMap, cv::COLOR_GRAY2RGB);
-    cv::circle(showMap, cv::Point(poseX, poseY), 1, cv::Scalar(0, 0, 255), -1);
+    cv::circle(showMap, cv::Point(poseX_px, poseY_px), 1, cv::Scalar(0, 0, 255), -1);
     Eigen::Matrix4Xf pcTransformed;
 
     scan = pose * tf_pc2robot * scan;
     pcTransformed = scan;
     std::cout << "UPDATE - pc cnt:"<< pcTransformed.cols() << std::endl;
     for(int i=0; i<pcTransformed.cols(); i++) {
-        int scanX;
-        int scanY;
-        scanX = static_cast<int>((pcTransformed(0,i) - mapCenterX + ((mapWidth * mapResolution)/2))/mapResolution);
-        scanY = static_cast<int>((pcTransformed(1,i) - mapCenterY + ((mapHeight * mapResolution)/2))/mapResolution);
+        int scanX_px;
+        int scanY_px;
+        // scanX_px = static_cast<int>((pcTransformed(0,i) - mapCenterX + ((mapWidth * mapResolution)/2))/mapResolution);
+        // scanY_px = static_cast<int>((pcTransformed(1,i) - mapCenterY + ((mapHeight * mapResolution)/2))/mapResolution);
+        scanX_px = static_cast<int>((pcTransformed(0,i) - mapCenterX) / mapResolution + (mapWidth / 2));
+        scanY_px = static_cast<int>((pcTransformed(1,i) - mapCenterY) / mapResolution + (mapHeight / 2));
 
-        if(0 <= scanX && scanX < gridMap.cols && scanY >=0 && scanY < gridMap.rows) {
-            cv::circle(showMap, cv::Point(scanX, scanY), 1, cv::Scalar(0, 255, 255), -1);
-            cv::LineIterator it(gridMap, cv::Point(poseX, poseY), cv::Point(scanX, scanY), 8, cv::LINE_AA);
+        if(0 <= scanX_px && scanX_px < gridMap.cols && scanY_px >=0 && scanY_px < gridMap.rows) {
+            cv::circle(showMap, cv::Point(scanX_px, scanY_px), 1, cv::Scalar(0, 255, 255), -1);
+            cv::LineIterator it(gridMap, cv::Point(poseX_px, poseY_px), cv::Point(scanX_px, scanY_px), 8, cv::LINE_AA);
             // std::cout << "pc cnt:"<< pcTransformed.cols() << "|| it cnt:" << it.count << std::endl;
             for(int j=0; j<it.count-1; j++) {
                 gridMap.at<float>(it.pos()) = gridMap.at<float>(it.pos()) + occuGridIncrease;
                 it++;
             }
 
-            gridMap.at<float>(cv::Point(scanX, scanY)) = gridMap.at<float>(cv::Point(scanX, scanY)) + occuGridDecrease;
+            gridMap.at<float>(cv::Point(scanX_px, scanY_px)) = gridMap.at<float>(cv::Point(scanX_px, scanY_px)) + occuGridDecrease;
         }
     }
 
@@ -95,7 +109,7 @@ void map_rt::convertAndPublishMap(const cv::Mat& image, const float t) {
 
     // 1. 메시지 헤더 설정
     map_msg.header.stamp = ros::Time(t);
-    map_msg.header.frame_id = "map";
+    map_msg.header.frame_id = "odom";
 
     // 2. OccupancyGrid 메타정보 설정 (맵 크기, 해상도, 원점 설정)
     map_msg.info.resolution = mapResolution;   // 각 그리드 셀의 크기 (예: 0.1m)
@@ -103,9 +117,9 @@ void map_rt::convertAndPublishMap(const cv::Mat& image, const float t) {
     map_msg.info.height = image.rows;       // 맵의 높이 (그리드 셀 수)
     
     // 3. 원점 (맵의 좌표계에서의 원점)
-    map_msg.info.origin.position.x = 0.0;
-    map_msg.info.origin.position.y = 0.0;
-    map_msg.info.origin.position.z = 0.0;
+    map_msg.info.origin.position.x = mapCenterX - mapWidth*mapResolution/2;
+    map_msg.info.origin.position.y = mapCenterY - mapHeight*mapResolution/2;
+    map_msg.info.origin.position.z = 0;
     map_msg.info.origin.orientation.w = 1.0;
 
     // 4. OccupancyGrid 데이터 채우기 (맵의 픽셀 값을 OccupancyGrid로 변환)
