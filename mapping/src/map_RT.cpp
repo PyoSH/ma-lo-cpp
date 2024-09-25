@@ -6,6 +6,8 @@ map_rt::map_rt() {
     mapResolution = 0.1; //  meter per pixel
     mapCenterX= 0;
     mapCenterY= 0;
+    occuGridIncrease = 0.02;
+    occuGridDecrease = -0.01;
 
     gridMap = cv::Mat(mapWidth, mapHeight, CV_32FC1, cv::Scalar(0.5));
 
@@ -33,7 +35,7 @@ map_rt::~map_rt() {
 /*
  * 여기에서 점군 처리 등을 다 해야 한다.
  */
-void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan) {
+void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, float t1, float t2) {
     int poseX, poseY;
     poseX = static_cast<int>((pose(0,3) - mapCenterX + ((mapWidth * mapResolution)/2))/mapResolution);
     poseY = static_cast<int>((pose(1,3) - mapCenterY + ((mapHeight * mapResolution)/2))/mapResolution);
@@ -58,11 +60,11 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan) {
             cv::LineIterator it(gridMap, cv::Point(poseX, poseY), cv::Point(scanX, scanY), 8, cv::LINE_AA);
             // std::cout << "pc cnt:"<< pcTransformed.cols() << "|| it cnt:" << it.count << std::endl;
             for(int j=0; j<it.count-1; j++) {
-                gridMap.at<float>(it.pos()) = gridMap.at<float>(it.pos()) + 0.02;
+                gridMap.at<float>(it.pos()) = gridMap.at<float>(it.pos()) + occuGridIncrease;
                 it++;
             }
 
-            gridMap.at<float>(cv::Point(scanX, scanY)) = gridMap.at<float>(cv::Point(scanX, scanY)) - 0.01;
+            gridMap.at<float>(cv::Point(scanX, scanY)) = gridMap.at<float>(cv::Point(scanX, scanY)) + occuGridDecrease;
         }
     }
 
@@ -73,7 +75,61 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan) {
     cv::Mat image_new = gridMap.clone();
     image_new.convertTo(image_new, CV_8UC3, 255.0);
     cv::imwrite("map.png", image_new);
+
+    float avg_time = (t1+t2)/2.0;
+    // // 1. PUB them into Image
+    // sensor_msgs::ImagePtr map_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", image_new).toImageMsg();
+    // map_msg->header.stamp = ros::Time(avg_time);
+    // map_msg->header.frame_id = "map"; 
+    // static ros::Publisher pub_map = ros::NodeHandle().advertise<sensor_msgs::Image>("/map", 1);
+    // pub_map.publish(map_msg);
+    
+    // PUB2. pub them into Occupancy Grid Map topic
+    convertAndPublishMap(image_new, avg_time);
+
     cv::waitKey(1);
+}
+
+void map_rt::convertAndPublishMap(const cv::Mat& image, const float t) {
+    nav_msgs::OccupancyGrid map_msg;
+
+    // 1. 메시지 헤더 설정
+    map_msg.header.stamp = ros::Time(t);
+    map_msg.header.frame_id = "map";
+
+    // 2. OccupancyGrid 메타정보 설정 (맵 크기, 해상도, 원점 설정)
+    map_msg.info.resolution = mapResolution;   // 각 그리드 셀의 크기 (예: 0.1m)
+    map_msg.info.width = image.cols;        // 맵의 너비 (그리드 셀 수)
+    map_msg.info.height = image.rows;       // 맵의 높이 (그리드 셀 수)
+    
+    // 3. 원점 (맵의 좌표계에서의 원점)
+    map_msg.info.origin.position.x = 0.0;
+    map_msg.info.origin.position.y = 0.0;
+    map_msg.info.origin.position.z = 0.0;
+    map_msg.info.origin.orientation.w = 1.0;
+
+    // 4. OccupancyGrid 데이터 채우기 (맵의 픽셀 값을 OccupancyGrid로 변환)
+    map_msg.data.resize(map_msg.info.width * map_msg.info.height);
+
+    for (int y = 0; y < image.rows; ++y) {
+        for (int x = 0; x < image.cols; ++x) {
+            int pixel_value = image.at<uchar>(y, x);  // 픽셀 값 가져오기 (0~255 범위)
+            int index = y * image.cols + x;  // OccupancyGrid의 1D 인덱스
+
+            // OpenCV 픽셀 값(0-255)을 OccupancyGrid 셀 값(-1, 0, 100)으로 변환
+            if (pixel_value == 255) {
+                map_msg.data[index] = 0;   // 255인 경우: 빈 공간
+            } else if (pixel_value == 0) {
+                map_msg.data[index] = 100; // 0인 경우: 장애물
+            } else {
+                map_msg.data[index] = -1;  // -1: 미확인 영역 (픽셀 값이 그 외인 경우)
+            }
+        }
+    }
+
+    // 5. ROS 토픽으로 발행
+    static ros::Publisher pub_map = ros::NodeHandle().advertise<nav_msgs::OccupancyGrid>("/map", 1);
+    pub_map.publish(map_msg);
 }
 
 Eigen::Matrix3f map_rt::get_rotation_matrix(float roll, float pitch, float yaw) {

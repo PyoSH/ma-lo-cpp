@@ -44,7 +44,7 @@ void check_data() {
             }
         }else {
             // std::cout<<"check data - else case"<<std::endl;
-            mapGenerator.updateMap(vec_poses[0], vec_scan[0]);
+            mapGenerator.updateMap(vec_poses[0], vec_scan[0], vec_poses_time[0], vec_scan_time[0]);
             vec_scan.pop_front();
             vec_scan_time.pop_front();
             vec_poses.pop_front();

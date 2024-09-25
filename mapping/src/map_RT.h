@@ -7,10 +7,13 @@
 #include <iostream>
 #include <eigen3/Eigen/Dense>
 #include <eigen3/Eigen/Core>
+#include <cv_bridge/cv_bridge.h>
 #include <opencv4/opencv2/opencv.hpp>
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/Image.h>
 #include <nav_msgs/Odometry.h>
+#include <nav_msgs/OccupancyGrid.h>
 #include <tf/tf.h>
 
 #include <pcl/point_types.h>  // 포인트 타입 정의
@@ -33,6 +36,8 @@ private:
     float mapResolution; // meter per pixel
     float mapCenterX;
     float mapCenterY;
+    float occuGridIncrease;
+    float occuGridDecrease;
 
     float roll_rad;
     float pitch_rad;
@@ -45,7 +50,8 @@ private:
 public:
     map_rt();
     ~map_rt();
-    void updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan);
+    void updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, float t1, float t2);
+    void convertAndPublishMap(const cv::Mat& image, const float t);
     Eigen::Matrix3f get_rotation_matrix(float roll, float pitch, float yaw);
 };
 
