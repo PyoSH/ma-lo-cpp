@@ -54,7 +54,7 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan) {
         scanY = static_cast<int>((pcTransformed(1,i) - mapCenterY + ((mapHeight * mapResolution)/2))/mapResolution);
 
         if(0 <= scanX && scanX < gridMap.cols && scanY >=0 && scanY < gridMap.rows) {
-            cv::circle(showMap, cv::Point(scanX, scanY), 1, cv::Scalar(0, 0, 255), -1);
+            cv::circle(showMap, cv::Point(scanX, scanY), 1, cv::Scalar(0, 255, 255), -1);
             cv::LineIterator it(gridMap, cv::Point(poseX, poseY), cv::Point(scanX, scanY), 8, cv::LINE_AA);
             // std::cout << "pc cnt:"<< pcTransformed.cols() << "|| it cnt:" << it.count << std::endl;
             for(int j=0; j<it.count-1; j++) {

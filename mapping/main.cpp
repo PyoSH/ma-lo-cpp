@@ -16,7 +16,7 @@ int main(int argc,char **argv) {
     std::cout<<ros::this_node::getName()<<std::endl;
     ros::NodeHandle nh;
 
-    ros::Subscriber sub_scan = nh.subscribe<sensor_msgs::PointCloud2>("/F/depth/color/points", 100, callback_scan);
+    ros::Subscriber sub_scan = nh.subscribe<sensor_msgs::PointCloud2>("/merged_pointcloud", 100, callback_scan);
     ros::Subscriber sub_pose = nh.subscribe<nav_msgs::Odometry>("/b1_controller/odom", 100, callback_pose);
 
     ros::spin();

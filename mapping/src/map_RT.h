@@ -6,6 +6,7 @@
 
 #include <iostream>
 #include <eigen3/Eigen/Dense>
+#include <eigen3/Eigen/Core>
 #include <opencv4/opencv2/opencv.hpp>
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>

@@ -31,3 +31,7 @@ add_executable(mapping_test mapping/main.cpp
         mapping/src/map_RT.h)
 target_link_libraries(mapping_test
         ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES})
+
+add_executable(mergePC tools/mergePC.cpp)
+target_link_libraries(mergePC
+        ${catkin_LIBRARIES} ${PCL_LIBRARIES})
