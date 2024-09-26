@@ -5,6 +5,7 @@
 #include <pcl/point_cloud.h>  // 포인트 클라우드 클래스
 #include <pcl_conversions/pcl_conversions.h>  // ros msg -> point cloud
 #include <pcl/filters/voxel_grid.h>  // 다운샘플링 필터
+#include "tool.h"
 
 std::deque<Eigen::Matrix4Xf> vec_scan_F;
 std::deque<double> vec_scan_F_time;
@@ -14,7 +15,6 @@ std::deque<double> vec_scan_R_time;
 void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg, const std::string& topic_name);
 void merge_AND_pub(Eigen::Matrix4Xf scan1, Eigen::Matrix4Xf scan2, double t1, double t2);
 void check_data();
-Eigen::Matrix3f get_rotation_matrix(float roll, float pitch, float yaw);
 
 int main(int argc,char **argv) {
     ros::init(argc, argv, "merge_PCs");
@@ -48,7 +48,7 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg, const std::str
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_vx_filtered(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
     voxel_filter.setInputCloud(pc_xyz);
-    voxel_filter.setLeafSize(0.1, 0.1, 0.1);
+    voxel_filter.setLeafSize(0.5, 0.5, 0.5);
     voxel_filter.filter(*pc_vx_filtered);
 
     int pointNum = pc_vx_filtered->points.size();
@@ -114,7 +114,7 @@ void merge_AND_pub(Eigen::Matrix4Xf scan1, Eigen::Matrix4Xf scan2, double t1, do
     float roll_rad = 0;
     float pitch_rad = 90 * M_PI / 180.0;
     float yaw_rad = 0;
-    Eigen::Matrix3f rotation = get_rotation_matrix(roll_rad, pitch_rad, yaw_rad);
+    Eigen::Matrix3f rotation = tool::get_rotation_matrix(roll_rad, pitch_rad, yaw_rad);
     tf_2to1.block<3,3>(0,0) << rotation;
     tf_2to1(0,3) = 0;
     tf_2to1(1,3) = 0;

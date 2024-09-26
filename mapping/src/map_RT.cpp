@@ -22,7 +22,7 @@ map_rt::map_rt() {
     roll_rad = -90 * M_PI / 180.0;
     pitch_rad = 0;
     yaw_rad = -90 * M_PI / 180.0;
-    rotation = get_rotation_matrix(roll_rad, pitch_rad, yaw_rad);
+    rotation = tool::get_rotation_matrix(roll_rad, pitch_rad, yaw_rad);
     tf_pc2robot.block<3,3>(0,0) << rotation;
     tf_pc2robot(0,3) = 0;
     tf_pc2robot(1,3) = 0;
@@ -36,13 +36,13 @@ map_rt::~map_rt() {
 /*
  * 우선 2차원으로 진행. 그래도 3차원으로도 바로 될듯?
  */
-void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, float t1, float t2) {
+void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2) {
     
-    if(!is1stPose){
+    if(is1stPose){
         mapCenterX = pose(0,3);
         mapCenterY = pose(1,3);
         mapCenterZ = pose(2,3);
-        is1stPose = true;
+        is1stPose = false;
     }
 
     int poseX_px, poseY_px;
@@ -90,7 +90,7 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, float t1, fl
     image_new.convertTo(image_new, CV_8UC3, 255.0);
     cv::imwrite("map.png", image_new);
 
-    float avg_time = (t1+t2)/2.0;
+    double avg_time = (t1+t2)/2.0;
     // // 1. PUB them into Image
     // sensor_msgs::ImagePtr map_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", image_new).toImageMsg();
     // map_msg->header.stamp = ros::Time(avg_time);
@@ -104,7 +104,7 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, float t1, fl
     cv::waitKey(1);
 }
 
-void map_rt::convertAndPublishMap(const cv::Mat& image, const float t) {
+void map_rt::convertAndPublishMap(const cv::Mat& image, const double t) {
     nav_msgs::OccupancyGrid map_msg;
 
     // 1. 메시지 헤더 설정
@@ -144,29 +144,4 @@ void map_rt::convertAndPublishMap(const cv::Mat& image, const float t) {
     // 5. ROS 토픽으로 발행
     static ros::Publisher pub_map = ros::NodeHandle().advertise<nav_msgs::OccupancyGrid>("/map", 1);
     pub_map.publish(map_msg);
-}
-
-Eigen::Matrix3f map_rt::get_rotation_matrix(float roll, float pitch, float yaw) {
-    // Rx: roll에 대한 회전 행렬
-    Eigen::Matrix3f Rx;
-    Rx << 1, 0, 0,
-          0, cos(roll), -sin(roll),
-          0, sin(roll), cos(roll);
-
-    // Ry: pitch에 대한 회전 행렬
-    Eigen::Matrix3f Ry;
-    Ry << cos(pitch), 0, sin(pitch),
-          0, 1, 0,
-          -sin(pitch), 0, cos(pitch);
-
-    // Rz: yaw에 대한 회전 행렬
-    Eigen::Matrix3f Rz;
-    Rz << cos(yaw), -sin(yaw), 0,
-          sin(yaw), cos(yaw), 0,
-          0, 0, 1;
-
-    // 전체 회전 행렬: Rz * Ry * Rx
-    Eigen::Matrix3f rotation_matrix = Rz * Ry * Rx;
-
-    return rotation_matrix;
 }

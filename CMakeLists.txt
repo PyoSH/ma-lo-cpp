@@ -14,7 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 catkin_package()
-include_directories(${catkin_INCLUDE_DIRS})
+include_directories(tools ${catkin_INCLUDE_DIRS})
 
 find_package(OpenCV REQUIRED)
 #include_directories(${OpenCV_INCLUDE_DIRS})
@@ -26,12 +26,29 @@ find_package(PCL REQUIRED)
 find_package(pcl_conversions)
 find_package(pcl_ros)
 
-add_executable(mapping_test mapping/main.cpp
+set(tool_source
+        tools/tool.cpp
+        tools/tool.h)
+
+set(mcl_source
+        localization/src/mcl.cpp
+        localization/src/mcl.h)
+
+set(mapping_source
         mapping/src/map_RT.cpp
         mapping/src/map_RT.h)
+
+# MAPPING
+add_executable(mapping_test mapping/main.cpp ${mapping_source} ${tool_source})
 target_link_libraries(mapping_test
         ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES})
 
-add_executable(mergePC tools/mergePC.cpp)
+# MCL
+add_executable(mcl_test localization/main.cpp ${mcl_source} ${tool_source})
+target_link_libraries(mcl_test
+        ${catkin_LIBRARIES} ${OpenCV_LIBRARIES} ${PCL_LIBRARIES})
+
+# tool-merge PCs
+add_executable(mergePC tools/mergePC.cpp ${tool_source})
 target_link_libraries(mergePC
         ${catkin_LIBRARIES} ${PCL_LIBRARIES})

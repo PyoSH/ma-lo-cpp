@@ -28,10 +28,11 @@
 #include <pcl/search/kdtree.h>  // KD 트리
 #include <pcl/common/transforms.h>  // 변환 기능
 
+#include "tool.h"
 
 class map_rt {
 private:
-    bool is1stPose = false;
+    bool is1stPose = true;
 
     float mapWidth;
     float mapHeight;
@@ -53,9 +54,8 @@ private:
 public:
     map_rt();
     ~map_rt();
-    void updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, float t1, float t2);
-    void convertAndPublishMap(const cv::Mat& image, const float t);
-    Eigen::Matrix3f get_rotation_matrix(float roll, float pitch, float yaw);
+    void updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2);
+    void convertAndPublishMap(const cv::Mat& image, const double t);
 };
 
 #endif //MAP_RT_H
