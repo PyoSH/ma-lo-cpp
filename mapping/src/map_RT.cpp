@@ -1,24 +1,17 @@
 #include "map_RT.h"
 
 map_rt::map_rt() {
-    mapWidth = 800;
-    mapHeight = 800;
+    mapWidth = 900;
+    mapHeight = 900;
     mapResolution = 0.1; //  meter per pixel
     mapCenterX= 0;
     mapCenterY= 0;
     mapCenterZ= 0;
-    occuGridIncrease = 0.02;
-    occuGridDecrease = -0.01;
+    occuGridIncrease = 0.5; // default : 0.5 -> 0.02
+    occuGridDecrease = -0.5; // default : 0.5
 
     gridMap = cv::Mat(mapWidth, mapHeight, CV_32FC1, cv::Scalar(0.5));
 
-    // tf_pc2robot << 1, 0, 0, 0,
-    //                 0, 1, 0, 0,
-    //                 0, 0, 1, 0,
-    //                 0, 0, 0, 1;
-    // roll_rad = -90 * M_PI / 180.0;
-    // pitch_rad = 0;
-    // yaw_rad = -90 * M_PI / 180.0;
     roll_rad = -90 * M_PI / 180.0;
     pitch_rad = 0;
     yaw_rad = -90 * M_PI / 180.0;

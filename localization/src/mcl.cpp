@@ -4,11 +4,11 @@ mcl::mcl(){
     m_sync_count = 0;
     gen.seed(rd());
 
-    gridMap_show = cv::imread("/home/pyo/map.png", cv::IMREAD_GRAYSCALE);
-    gridMap_use = cv::imread("/home/pyo/map.png", cv::IMREAD_GRAYSCALE);
+    gridMap_show = cv::imread("/home/pyo/savedMap.png", cv::IMREAD_GRAYSCALE);
+    gridMap_use = cv::imread("/home/pyo/savedMap.png", cv::IMREAD_GRAYSCALE);
 
-    numOfParticle = 2500;
-    minOdomDistance = 0.1; //[m]
+    numOfParticle = 200; // 2500
+    minOdomDistance = 0.2; //[m]
     minOdomAngle = 30; // [deg]
     repropagateCountNeeded = 1; // [num]
     odomCovariance[0] = 0.02; // Rotation to Rotation
@@ -58,10 +58,11 @@ void mcl::initializeParticles(){
     for(int i=0; i<numOfParticle; ++i){
         particle currParticle;
         float randomX = x_pos(gen);
-        float randomY = x_pos(gen);
+        float randomY = y_pos(gen);
         float randomTheta = theta_pos(gen);
         currParticle.pose = tool::xyzrpy2eigen(randomX, randomY, 0,0,0, randomTheta);
         currParticle.score = 1/(double)numOfParticle;
+        particles.emplace_back(currParticle);
     }
     showInMap();
 }
@@ -213,13 +214,16 @@ void mcl::showInMap(){
 void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2){
     if(is1stPose){
         odomBefore = pose;
+        mapCenterX = pose(0,3);
+        mapCenterY = pose(1,3);
         is1stPose = false;
+        // mapCenterZ = pose(2,3);
     }
 
     Eigen::Matrix4f diffOdom = odomBefore.inverse()*pose; // odom After = odom New * diffOdom
     Eigen::VectorXf diffxyzrpy = tool::eigen2xyzrpy(diffOdom);
     float diffDistance = sqrt(pow(diffxyzrpy[0], 2) + pow(diffxyzrpy[1], 2));
-    float diffAngle = fabs(diffxyzrpy[5] * 180.0/M_PI);
+    float diffAngle = fabs(diffxyzrpy[5] * 180.0/3.141592);
 
     if(diffDistance > minOdomDistance || diffAngle > minOdomAngle){
         prediction(diffOdom);
