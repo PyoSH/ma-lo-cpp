@@ -5,7 +5,7 @@ mcl::mcl(){
     gen.seed(rd());
 
     gridMap_show = cv::imread("/home/pyo/savedMap.png", cv::IMREAD_GRAYSCALE);
-    gridMap_use = cv::imread("/home/pyo/savedMap.png", cv::IMREAD_GRAYSCALE);
+    gridMap_use = cv::imread("/home/pyo/erodedMap.png", cv::IMREAD_GRAYSCALE);
 
     numOfParticle = 200; // 2500
     minOdomDistance = 0.2; //[m]

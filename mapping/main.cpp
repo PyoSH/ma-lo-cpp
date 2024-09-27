@@ -32,8 +32,8 @@ void check_data() {
     // std::cout<<"check data init"<<std::endl;
     while(!vec_poses.empty() && !vec_scan.empty()) {
         // std::cout<<"check data - if case"<<std::endl;
-        std::cout<<"POSE t :" <<vec_poses_time[0] << std::setprecision(9)<<
-            "||" <<"SCAN t :" <<vec_scan_time[0] << std::setprecision(9) <<std::endl;
+        // std::cout<<"POSE t :" <<vec_poses_time[0] << std::setprecision(9)<<
+            // "||" <<"SCAN t :" <<vec_scan_time[0] << std::setprecision(9) <<std::endl;
         if(fabs(vec_poses_time[0] - vec_scan_time[0]) > 0.1) {
             if(vec_poses_time[0] > vec_scan_time[0]) {
                 vec_scan.pop_front();
@@ -58,7 +58,7 @@ void check_data() {
  * 3D 점군 받았을 때 deque 구조로 넣을 수 있도록 하기
  */
 void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg) {
-    std::cout<<"CB - SCAN init"<<std::endl;
+    // std::cout<<"CB - SCAN init"<<std::endl;
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_xyz(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(*msg, *pc_xyz);
 
@@ -78,7 +78,7 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg) {
     int pointNum = pc_filtered->points.size();
     Eigen::Matrix4Xf eigenScan = Eigen::Matrix4Xf::Ones(4, 1);
     int usefulPoint = 0;
-    std::cout<<"CB - pointNum "<< pointNum <<std::endl;
+    // std::cout<<"CB - pointNum "<< pointNum <<std::endl;
 
     for(int i = 0; i < pointNum; i++) {
         // std::cout<<"CB - SCAN 2"<<std::endl;
