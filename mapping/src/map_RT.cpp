@@ -7,8 +7,8 @@ map_rt::map_rt() {
     mapCenterX= 0;
     mapCenterY= 0;
     mapCenterZ= 0;
-    occuGridIncrease = -0.5; // default : 0.5 -> 0.02
-    occuGridDecrease = 0.1; // default : 0.5
+    occuGridIncrease = -0.4; // default : 0.5 -> 0.02
+    occuGridDecrease = 0.2; // default : 0.5
 
     gridMap = cv::Mat(mapWidth, mapHeight, CV_32FC1, cv::Scalar(0.5));
 
@@ -72,7 +72,6 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
             }
 
             gridMap.at<float>(cv::Point(scanX_px, scanY_px)) = gridMap.at<float>(cv::Point(scanX_px, scanY_px)) + occuGridIncrease;
-            std::cout <<gridMap.at<float>(cv::Point(scanX_px, scanY_px)) << std::endl;
         }
     }
 
@@ -84,27 +83,29 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
     image_new.convertTo(image_new, CV_8UC3, 255.0);
     cv::imwrite("map.png", image_new);
 
-    cv::Mat img_save = gridMap.clone();
-    img_save.convertTo(img_save, CV_32FC1, 1.0 / 255.0);
-    // cv::bitwise_not(img_save, img_save);    
-    // for (int i = 0; i < img_save.rows; i++) {
-    //     for (int j = 0; j < img_save.cols; j++) {
-    //         // Get pixel value
-    //         float pixel = img_save.at<uchar>(i, j);
-    //         img_save.at<float>(i, j) = fabs(255 - img_save.at<float>(i, j));  // Black to White
-    //     }
-    // }
-    cv::Mat inverted_image = 1.0 - img_save;  // Perform the inversion in floating point (CV_32FC1)
+    cv::Mat img_save = image_new.clone();
+    img_save.convertTo(img_save, CV_8UC3, 255.0);
+    for (int i = 0; i < img_save.rows; i++) {
+        for (int j = 0; j < img_save.cols; j++) {
+            // Get pixel value
+            char pixel = img_save.at<uchar>(i, j);
+            img_save.at<uchar>(i, j) = abs(255 - pixel);  // Black to White
+        }
+    }    
 
-    // Optional: Convert back to CV_8UC1 for display or saving (if you need to visualize it)
-    cv::Mat image_8bit;
-    inverted_image.convertTo(image_8bit, CV_8UC1, 255.0);
+    // cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    // cv::erode(img_save, img_save, kernel);
+    int dilation_size = 1;  // This controls the level of "expansion" of white points
+    cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT,
+                                cv::Size(2 * dilation_size + 1, 2 * dilation_size + 1),
+                                cv::Point(dilation_size, dilation_size));
 
-    cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
-    cv::erode(inverted_image, img_save, kernel);
-    // img_save.convertTo(img_save, CV_8UC3, 0.0);
-    cv::imshow("erode", img_save);
-    // cv::imwrite("/home/pyo/erodedMap.png", img_save);
+    // Apply dilate to "expand" white points
+    cv::Mat dilated_image;
+    cv::dilate(img_save, img_save, element);
+
+    cv::imshow("dilate", img_save);
+    cv::imwrite("/home/pyo/erodedMap.png", img_save);
 
     double avg_time = (t1+t2)/2.0;
     // // 1. PUB them into Image
