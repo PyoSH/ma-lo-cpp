@@ -48,7 +48,7 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg, const std::str
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_vx_filtered(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
     voxel_filter.setInputCloud(pc_xyz);
-    voxel_filter.setLeafSize(0.1, 0.1, 0.1);
+    voxel_filter.setLeafSize(0.2, 0.2, 0.2);
     voxel_filter.filter(*pc_vx_filtered);
 
     int pointNum = pc_vx_filtered->points.size();
