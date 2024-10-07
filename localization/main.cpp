@@ -31,7 +31,7 @@ int main(int argc, char **argv){
 void check_data(){
   while(!vec_poses.empty() && !vec_scan.empty())
   {
-    // std::cout<<"CHECK-DATA init"<<std::endl;
+    std::cout<<"CHECK-DATA init"<<std::endl;
     if(fabs(vec_poses_time[0] - vec_scan_time[0])>0.1){
       if(vec_poses_time[0]>vec_scan_time[0]){
         vec_scan.erase(vec_scan.begin());
@@ -52,7 +52,7 @@ void check_data(){
         vec_poses_time.pop_front();
     }
   }
-  // std::cout<<"CHECK-DATA end"<<std::endl;
+  std::cout<<"CHECK-DATA end"<<std::endl;
 }
 
 void callback_scan(const sensor_msgs::PointCloud2::ConstPtr &msg){
@@ -101,7 +101,7 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr &msg){
 
 void callback_pose(const nav_msgs::Odometry::ConstPtr &msg)
 {
-    // std::cout<<"CB-POSE init"<<std::endl;
+    std::cout<<"CB-POSE init"<<std::endl;
     Eigen::Matrix4f eigenPose;
     tf::Quaternion q(msg->pose.pose.orientation.x, msg->pose.pose.orientation.y, msg->pose.pose.orientation.z, msg->pose.pose.orientation.w);
     tf::Matrix3x3 m(q);
@@ -110,9 +110,9 @@ void callback_pose(const nav_msgs::Odometry::ConstPtr &msg)
                 m[2][0], m[2][1], m[2][2], msg->pose.pose.position.z,
                 0,0,0,1;
 
-
+    // std::cout <<"CB-POSE Pose_t: \n"<< eigenPose << std::endl; // ?!?
     vec_poses.emplace_back(eigenPose);
     vec_poses_time.emplace_back(msg->header.stamp.toSec());
     check_data();
-    // std::cout<<"CB-POSE end"<<std::endl;
+    std::cout<<"CB-POSE end"<<std::endl;
 }

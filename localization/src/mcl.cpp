@@ -59,8 +59,19 @@ void mcl::initializeParticles(){
         // float randomY = y_pos(gen);
         // float randomTheta = theta_pos(gen);
         // currParticle.pose = tool::xyzrpy2eigen(randomX, randomY, 0,0,0, randomTheta);
-        Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
-        currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), 0,0,0, initPose(5)); // !!!
+        std::cout <<"odomBefore: \n"<< odomBefore << std::endl; // ?!? 여기에 초기 값 직접 넣어봐? 
+        
+        Eigen::Matrix4f initMat;
+        tf::Quaternion q(0.0008111767238005996, -0.0017652192618697882, -0.6371458172798157, 0.7707408666610718);
+        tf::Matrix3x3 m(q);
+        initMat<< m[0][0], m[0][1], m[0][2], 5.2161173820495605,
+                  m[1][0], m[1][1], m[1][2], 8.907722473144531,
+                  m[2][0], m[2][1], m[2][2], 0,
+                  0,0,0,1;
+        Eigen::VectorXf initPose = tool::eigen2xyzrpy(initMat);
+        
+        currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), initPose(2),0,0, initPose(5)); // !!!
+        std::cout <<"initParticle Pose: \n"<< currParticle.pose << std::endl; // ?!?
         currParticle.score = 1/(double)numOfParticle;
         particles.emplace_back(currParticle);
     }
@@ -70,12 +81,22 @@ void mcl::initializeParticles(){
 void mcl::prediction(Eigen::Matrix4f diffPose){
     std::cout << "Predicting..." << m_sync_count << std::endl;
     Eigen::VectorXf diff_xyzrpy = tool::eigen2xyzrpy(diffPose); //{x,y,z,R,P,Y} (z, R, P -> assume to 0)
-    
+    Eigen::Matrix3f diff_rotation = diffPose.block<3,3>(0,0);
+    Eigen::Quaternionf diff_quat(diff_rotation);
+    double diff_yaw = diff_quat.toRotationMatrix().eulerAngles(2,1,0)[0];
+
+    // std::cout <<"prediction quat: \n"<< diff_quat << std::endl; // ?!?
 
     // Using Odometry model to motion model
     double delta_trans = sqrt(pow(diff_xyzrpy(0), 2) + pow(diff_xyzrpy(1), 2));
     double delta_rot1 = atan2(diff_xyzrpy(1), diff_xyzrpy(0)); // [rad] 
     double delta_rot2 = diff_xyzrpy(5) - delta_rot1; // [rad] 목표 위치로 이동 후 추가로 회전한 각도
+    // double delta_trans_ = sqrt(pow(diffPose(1, 3), 2) + pow(diffPose(0, 3), 2));
+    // double delta_rot1_ = atan2(diffPose(1, 3), diffPose(0, 3)); // [rad] 
+    // double delta_rot2_ = diff_yaw - delta_rot1; // [rad] 목표 위치로 이동 후 추가로 회전한 각도
+
+    // std::cout <<"origin: " << delta_trans << " | "<<delta_rot1 << " | " << delta_rot2 << std::endl;
+    // std::cout <<"modify: " << delta_trans_ << " | "<<delta_rot1_ << " | " << delta_rot2_ << std::endl;
     
 
     std::default_random_engine generator;
@@ -104,12 +125,13 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
         // double y = delta_trans * sin(delta_rot1) + gaussian_distribution(gen) * odomCovariance[5]; // 책에서는 뺀다
         // double theta = delta_rot1 + delta_rot2 + (gaussian_distribution(gen) * odomCovariance[0]*(M_PI/180.0)); // rad 값으로 더하기 위함, 책에서는 뺀다
         double x = delta_trans * cos(delta_rot1); // !!!
-        double y = delta_trans * sin(delta_rot1); // delta_rot1으로 해야 해.
+        double y = delta_trans * sin(delta_rot1); // !!!
         double theta = delta_rot1 + delta_rot2; // !!!
 
         Eigen::Matrix4f diff_odom_w_noise = tool::xyzrpy2eigen(x, y, 0, 0, 0, theta);
         Eigen::Matrix4f pose_t_plus_1 = particles.at(i).pose * diff_odom_w_noise;
 
+        std::cout <<"prediction Pose_t+1: \n"<< pose_t_plus_1 << std::endl; // ?!?
         scoreSum = scoreSum + particles.at(i).score;
         particles.at(i).pose = pose_t_plus_1;
     }
@@ -184,10 +206,13 @@ void mcl::showInMap(){
 
     // draw particles in blue dots
     for(int i=0; i<numOfParticle; ++i){
+        std::cout <<"draw Pose_t: \n"<< particles.at(0).pose << std::endl; // ?!?
         int poseX_px = static_cast<int>((particles.at(i).pose(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
         int poseY_px = static_cast<int>((particles.at(i).pose(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
-        std::cout << poseX_px << " | " << poseY_px << std::endl;
+        std::cout <<"-----------------------"<< poseX_px << " | " << poseY_px <<"-----------------------" <<std::endl;
         cv::circle(showMap, cv::Point(poseX_px, poseY_px), 5, cv::Scalar(255,0,0), -1); // 1
+
+        // double poseX_m = 
     }
 
     // if(maxProbParticle.score > 0){
@@ -222,16 +247,19 @@ void mcl::showInMap(){
 void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2){
     if(is1stPose){
         odomBefore = pose;
-        // mapCenterX = pose(0,3);
-        // mapCenterY = pose(1,3);
+        mapCenterX = pose(0,3);
+        mapCenterY = pose(1,3);
         is1stPose = false;
         // mapCenterZ = pose(2,3);
     }
+    // std::cout <<"UPDATE-DATA Pose_t: \n"<< pose << std::endl; // ?!?
 
     Eigen::Matrix4f diffOdom = odomBefore.inverse()*pose; // odom After = odom New * diffOdom
-    Eigen::VectorXf diffxyzrpy = tool::eigen2xyzrpy(diffOdom);
-    float diffDistance = sqrt(pow(diffxyzrpy(0), 2) + pow(diffxyzrpy(1), 2)); //[m]
-    float diffAngle = fabs(diffxyzrpy(5) * 180.0/3.141592); // [deg]
+    // std::cout <<"UPDATE-DATA diffOdom: \n"<< diffOdom << std::endl; // ?!?
+    // Eigen::VectorXf diffxyzrpy = tool::eigen2xyzrpy(diffOdom);
+    // std::cout <<"UPDATE-DATA diffxyzrpy: \n"<< diffxyzrpy << std::endl; // ?!?
+    // float diffDistance = sqrt(pow(diffxyzrpy(0), 2) + pow(diffxyzrpy(1), 2)); //[m]
+    // float diffAngle = fabs(diffxyzrpy(5) * 180.0/3.141592); // [deg]
     // std:: cout << "diffDistance: " << diffDistance << " | diffAngle: " << diffAngle << std::endl;
     prediction(diffOdom); // !!!!
     odomBefore = pose; // !!!!
