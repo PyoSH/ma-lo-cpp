@@ -3,7 +3,7 @@
 map_rt::map_rt() {
     mapWidth = 900;
     mapHeight = 900;
-    mapResolution = 0.1; //  meter per pixel
+    mapResolution = 0.05; //  meter per pixel
     mapCenterX= 0;
     mapCenterY= 0;
     mapCenterZ= 0;
@@ -77,8 +77,8 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
 
     std::string text1 = "Current points: " + std::to_string(pcTransformed.cols());
     cv::putText(showMap, text1, cv::Point(10, mapHeight - 100), cv::FONT_HERSHEY_PLAIN, 2, cv::Scalar(255, 255, 255), 2);
-    cv::imshow("current Map", showMap);
-    cv::imshow("Map", gridMap);
+    // cv::imshow("current Map", showMap);
+    // cv::imshow("Map", gridMap);
     cv::Mat image_new = gridMap.clone();
     image_new.convertTo(image_new, CV_8UC3, 255.0);
     cv::imwrite("map.png", image_new);
@@ -93,16 +93,16 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
         }
     }    
 
-    // cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
-    // cv::erode(img_save, img_save, kernel);
-    int dilation_size = 1;  // This controls the level of "expansion" of white points
+    // // cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
+    // // cv::erode(img_save, img_save, kernel);
+    int dilation_size = 2;  // This controls the level of "expansion" of white points
     cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT,
                                 cv::Size(2 * dilation_size + 1, 2 * dilation_size + 1),
                                 cv::Point(dilation_size, dilation_size));
-
-    // Apply dilate to "expand" white points
+    // cv::morphologyEx(image_new.clone(), img_save, cv::MORPH_OPEN, cv::Mat());
     cv::Mat dilated_image;
     cv::dilate(img_save, img_save, element);
+    cv::erode(img_save, img_save, cv::Mat());
 
     cv::imshow("dilate", img_save);
     cv::imwrite("/home/pyo/erodedMap.png", img_save);

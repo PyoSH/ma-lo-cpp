@@ -11,8 +11,8 @@ cv::Mat cvMaptoMCLMap(cv::Mat mat)
     {
       unsigned char val = mat.at<unsigned char>(j,i);
       if(val>100 && val<150) mat.at<unsigned char>(j,i)=255;
-//      else if(val<128) mat.at<unsigned char>(j,i)=255-val;
-//      else if(val>128) mat.at<unsigned char>(j,i)=255-val;
+      // else if(val<128) mat.at<unsigned char>(j,i)=255-val;
+      else if(val>128) mat.at<unsigned char>(j,i)=255-val;
     }
   }
   return mat;

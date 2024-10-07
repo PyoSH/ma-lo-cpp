@@ -7,9 +7,9 @@ mcl::mcl(){
     gridMap_show = cv::imread("/home/pyo/erodedMap.png", cv::IMREAD_GRAYSCALE);
     gridMap_use = cv::imread("/home/pyo/erodedMap.png", cv::IMREAD_GRAYSCALE);
 
-    numOfParticle = 1; // 2500
-    minOdomDistance = 0.1; //[m]
-    minOdomAngle = 30; // [deg]
+    numOfParticle = 100; // 2500
+    minOdomDistance = 0.05; //[m]
+    minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 1; // [num]
     odomCovariance[0] = 0.02; // Rotation to Rotation
     odomCovariance[1] = 0.02; // translation to Rotation
@@ -34,8 +34,8 @@ mcl::mcl(){
     is1stPose = true;
     predictionCounter = 0;
     
-    initializeParticles();
-    showInMap();
+    // initializeParticles();
+    // showInMap();
 }
 
 mcl::~mcl(){
@@ -48,30 +48,30 @@ void mcl::initializeParticles(){
     * !!! 맵의 가로 크기를 4로 나눔 -> 입자 초기화 범위를 전체 맵의 중앙에 분포하도록. <- 계산 트릭인듯
     * 맵 전체에 분포되도록 하려면 2로 나눌 것!!!
     */
-    // std::uniform_real_distribution<float> x_pos(mapCenterX - gridMap_use.cols * imageResolution / 8.0,
-    //             mapCenterX + gridMap_use.cols * imageResolution / 8.0);
-    // std::uniform_real_distribution<float> y_pos(mapCenterY - gridMap_use.rows * imageResolution / 8.0,
-    //             mapCenterY + gridMap_use.rows * imageResolution / 8.0);
-    // std::uniform_real_distribution<float> theta_pos(-M_PI, M_PI); // -180~180 [deg]
+    std::uniform_real_distribution<float> x_pos(mapCenterX - gridMap_use.cols * imageResolution / 8.0,
+                mapCenterX + gridMap_use.cols * imageResolution / 8.0);
+    std::uniform_real_distribution<float> y_pos(mapCenterY - gridMap_use.rows * imageResolution / 8.0,
+                mapCenterY + gridMap_use.rows * imageResolution / 8.0);
+    std::uniform_real_distribution<float> theta_pos(-M_PI, M_PI); // -180~180 [deg]
+    std::cout <<"mapCenterX " <<mapCenterX << " |mapCenterY " << mapCenterY << std::endl;
+
     for(int i=0; i<numOfParticle; ++i){
+        Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
+
         particle currParticle;
-        // float randomX = x_pos(gen);
-        // float randomY = y_pos(gen);
-        // float randomTheta = theta_pos(gen);
-        // currParticle.pose = tool::xyzrpy2eigen(randomX, randomY, 0,0,0, randomTheta);
-        std::cout <<"odomBefore: \n"<< odomBefore << std::endl; // ?!? 여기에 초기 값 직접 넣어봐? 
+        float randomX = x_pos(gen);
+        float randomY = y_pos(gen);
+        float randomTheta = theta_pos(gen);
+        currParticle.pose = tool::xyzrpy2eigen(randomX, randomY, 0,0,0, initPose(5));
+        // Eigen::Matrix4f initMat;
+        // tf::Quaternion q(0.0008111767238005996, -0.0017652192618697882, -0.6371458172798157, 0.7707408666610718);
+        // tf::Matrix3x3 m(q);
+        // initMat<< m[0][0], m[0][1], m[0][2], 5.2161173820495605,
+        //           m[1][0], m[1][1], m[1][2], 8.907722473144531,
+        //           m[2][0], m[2][1], m[2][2], 0,
+        //           0,0,0,1;
         
-        Eigen::Matrix4f initMat;
-        tf::Quaternion q(0.0008111767238005996, -0.0017652192618697882, -0.6371458172798157, 0.7707408666610718);
-        tf::Matrix3x3 m(q);
-        initMat<< m[0][0], m[0][1], m[0][2], 5.2161173820495605,
-                  m[1][0], m[1][1], m[1][2], 8.907722473144531,
-                  m[2][0], m[2][1], m[2][2], 0,
-                  0,0,0,1;
-        Eigen::VectorXf initPose = tool::eigen2xyzrpy(initMat);
-        
-        currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), initPose(2),0,0, initPose(5)); // !!!
-        std::cout <<"initParticle Pose: \n"<< currParticle.pose << std::endl; // ?!?
+        // currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), initPose(2),0,0, initPose(5)); // !!!
         currParticle.score = 1/(double)numOfParticle;
         particles.emplace_back(currParticle);
     }
@@ -81,23 +81,11 @@ void mcl::initializeParticles(){
 void mcl::prediction(Eigen::Matrix4f diffPose){
     std::cout << "Predicting..." << m_sync_count << std::endl;
     Eigen::VectorXf diff_xyzrpy = tool::eigen2xyzrpy(diffPose); //{x,y,z,R,P,Y} (z, R, P -> assume to 0)
-    Eigen::Matrix3f diff_rotation = diffPose.block<3,3>(0,0);
-    Eigen::Quaternionf diff_quat(diff_rotation);
-    double diff_yaw = diff_quat.toRotationMatrix().eulerAngles(2,1,0)[0];
-
-    // std::cout <<"prediction quat: \n"<< diff_quat << std::endl; // ?!?
 
     // Using Odometry model to motion model
     double delta_trans = sqrt(pow(diff_xyzrpy(0), 2) + pow(diff_xyzrpy(1), 2));
     double delta_rot1 = atan2(diff_xyzrpy(1), diff_xyzrpy(0)); // [rad] 
-    double delta_rot2 = diff_xyzrpy(5) - delta_rot1; // [rad] 목표 위치로 이동 후 추가로 회전한 각도
-    // double delta_trans_ = sqrt(pow(diffPose(1, 3), 2) + pow(diffPose(0, 3), 2));
-    // double delta_rot1_ = atan2(diffPose(1, 3), diffPose(0, 3)); // [rad] 
-    // double delta_rot2_ = diff_yaw - delta_rot1; // [rad] 목표 위치로 이동 후 추가로 회전한 각도
-
-    // std::cout <<"origin: " << delta_trans << " | "<<delta_rot1 << " | " << delta_rot2 << std::endl;
-    // std::cout <<"modify: " << delta_trans_ << " | "<<delta_rot1_ << " | " << delta_rot2_ << std::endl;
-    
+    double delta_rot2 = diff_xyzrpy(5) - delta_rot1; // [rad] 목표 위치로 이동 후 추가로 회전한 각도    
 
     std::default_random_engine generator;
     if(delta_rot1  > M_PI)
@@ -109,29 +97,25 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
     if(delta_rot2  < -M_PI)
             delta_rot2 += (2*M_PI);
     //// Add noises to trans/rot1/rot2
-    // double trans_noise_coeff = odomCovariance[2]*fabs(delta_trans) + odomCovariance[3]*fabs(delta_rot1+delta_rot2);
-    // double rot1_noise_coeff = odomCovariance[0]*fabs(delta_rot1) + odomCovariance[1]*fabs(delta_trans);
-    // double rot2_noise_coeff = odomCovariance[0]*fabs(delta_rot2) + odomCovariance[1]*fabs(delta_trans);
+    double trans_noise_coeff = odomCovariance[2]*fabs(delta_trans) + odomCovariance[3]*fabs(delta_rot1+delta_rot2);
+    double rot1_noise_coeff = odomCovariance[0]*fabs(delta_rot1) + odomCovariance[1]*fabs(delta_trans);
+    double rot2_noise_coeff = odomCovariance[0]*fabs(delta_rot2) + odomCovariance[1]*fabs(delta_trans);
 
     float scoreSum = 0;
     for(int i=0; i<particles.size(); ++i){
-        // std::normal_distribution<double> gaussian_distribution(0,1);
+        std::normal_distribution<double> gaussian_distribution(0,1);
 
-        // delta_trans = delta_trans + gaussian_distribution(gen) * trans_noise_coeff;
-        // delta_rot1 = delta_rot1 + gaussian_distribution(gen) * rot1_noise_coeff;
-        // delta_rot2 = delta_rot2 + gaussian_distribution(gen) * rot2_noise_coeff;
+        delta_trans = delta_trans - gaussian_distribution(gen) * trans_noise_coeff; // 책에서는 뺀다
+        delta_rot1 = delta_rot1 - gaussian_distribution(gen) * rot1_noise_coeff; // 책에서는 뺀다
+        delta_rot2 = delta_rot2 - gaussian_distribution(gen) * rot2_noise_coeff; // 책에서는 뺀다
 
-        // double x = delta_trans * cos(delta_rot1) + gaussian_distribution(gen) * odomCovariance[4]; // 책에서는 뺀다
-        // double y = delta_trans * sin(delta_rot1) + gaussian_distribution(gen) * odomCovariance[5]; // 책에서는 뺀다
-        // double theta = delta_rot1 + delta_rot2 + (gaussian_distribution(gen) * odomCovariance[0]*(M_PI/180.0)); // rad 값으로 더하기 위함, 책에서는 뺀다
-        double x = delta_trans * cos(delta_rot1); // !!!
-        double y = delta_trans * sin(delta_rot1); // !!!
-        double theta = delta_rot1 + delta_rot2; // !!!
+        double x = delta_trans * cos(delta_rot1) + gaussian_distribution(gen) * odomCovariance[4]; 
+        double y = delta_trans * sin(delta_rot1) + gaussian_distribution(gen) * odomCovariance[5]; 
+        double theta = delta_rot1 + delta_rot2 + (gaussian_distribution(gen) * odomCovariance[0]*(M_PI/180.0)); // rad 값으로 더하기 위함
 
         Eigen::Matrix4f diff_odom_w_noise = tool::xyzrpy2eigen(x, y, 0, 0, 0, theta);
         Eigen::Matrix4f pose_t_plus_1 = particles.at(i).pose * diff_odom_w_noise;
 
-        std::cout <<"prediction Pose_t+1: \n"<< pose_t_plus_1 << std::endl; // ?!?
         scoreSum = scoreSum + particles.at(i).score;
         particles.at(i).pose = pose_t_plus_1;
     }
@@ -158,6 +142,7 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
             if(gridMap_use.cols <= ptX_px || ptX_px < 0 || gridMap_use.rows <= ptY_px || ptY_px < 0) continue;
             else{
                 double img_val = gridMap_use.at<uchar>(ptX_px, ptY_px)/(double)255; // calc the score
+                // std::cout << "WEIGHTNING - img_val "<<img_val << std::endl;
                 calcedWeight += img_val; // sum up the score
             }
         }
@@ -176,7 +161,7 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
 }
 
 void mcl::resampling(){
-    std::cout << "Resampling..."<< m_sync_count << std::endl;
+    // std::cout << "Resampling..."<< m_sync_count << std::endl;
 
     std::vector<double> particleScores;
     std::vector<particle> particleSampled;
@@ -206,39 +191,32 @@ void mcl::showInMap(){
 
     // draw particles in blue dots
     for(int i=0; i<numOfParticle; ++i){
-        std::cout <<"draw Pose_t: \n"<< particles.at(0).pose << std::endl; // ?!?
         int poseX_px = static_cast<int>((particles.at(i).pose(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
         int poseY_px = static_cast<int>((particles.at(i).pose(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
-        std::cout <<"-----------------------"<< poseX_px << " | " << poseY_px <<"-----------------------" <<std::endl;
         cv::circle(showMap, cv::Point(poseX_px, poseY_px), 5, cv::Scalar(255,0,0), -1); // 1
-
-        // double poseX_m = 
     }
 
-    // if(maxProbParticle.score > 0){
-    // // if(true){
-    //     float x_all = 0;
-    //     float y_all = 0;
+    if(maxProbParticle.score > 0){
+        float x_all = 0;
+        float y_all = 0;
         
-    //     for(int i=0; i<particles.size(); ++i){
-    //         // x_all = x_all + particles.at(i).pose(0,3) * particles.at(i).score;
-    //         // y_all = y_all + particles.at(i).pose(1,3) * particles.at(i).score;
-    //         x_all = x_all + particles.at(i).pose(0,3);
-    //         y_all = y_all + particles.at(i).pose(1,3);
-    //     }
-    //     int poseX_px_all = static_cast<int>((x_all - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
-    //     int poseY_px_all = static_cast<int>((y_all - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
+        for(int i=0; i<particles.size(); ++i){
+            x_all = x_all + particles.at(i).pose(0,3) * particles.at(i).score;
+            y_all = y_all + particles.at(i).pose(1,3) * particles.at(i).score;
+        }
+        int poseX_px_all = static_cast<int>((x_all - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
+        int poseY_px_all = static_cast<int>((y_all - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
 
-    //     cv::circle(showMap, cv::Point(poseX_px_all, poseY_px_all), 2, cv::Scalar(0,0,255), -1);
-    //     Eigen::Matrix4Xf transScan = maxProbParticle.pose * tf_pc2robot * maxProbParticle.scan;
+        cv::circle(showMap, cv::Point(poseX_px_all, poseY_px_all), 2, cv::Scalar(0,0,255), -1);
+        Eigen::Matrix4Xf transScan = maxProbParticle.pose * tf_pc2robot * maxProbParticle.scan;
 
-    //     for(int i=0; i<transScan.cols(); ++i){
-    //         int scanX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
-    //         int scanY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
+        for(int i=0; i<transScan.cols(); ++i){
+            int scanX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
+            int scanY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
 
-    //         cv::circle(showMap, cv::Point(scanX_px, scanY_px), 1, cv::Scalar(0,255,255), -1);
-    //     }
-    // }
+            cv::circle(showMap, cv::Point(scanX_px, scanY_px), 1, cv::Scalar(0,255,255), -1);
+        }
+    }
     
     cv::imshow("MCL2", showMap);
     cv::waitKey(1);
@@ -249,31 +227,30 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
         odomBefore = pose;
         mapCenterX = pose(0,3);
         mapCenterY = pose(1,3);
+        mapCenterZ = pose(2,3);
+
+        initializeParticles();
         is1stPose = false;
-        // mapCenterZ = pose(2,3);
     }
     // std::cout <<"UPDATE-DATA Pose_t: \n"<< pose << std::endl; // ?!?
 
     Eigen::Matrix4f diffOdom = odomBefore.inverse()*pose; // odom After = odom New * diffOdom
-    // std::cout <<"UPDATE-DATA diffOdom: \n"<< diffOdom << std::endl; // ?!?
-    // Eigen::VectorXf diffxyzrpy = tool::eigen2xyzrpy(diffOdom);
-    // std::cout <<"UPDATE-DATA diffxyzrpy: \n"<< diffxyzrpy << std::endl; // ?!?
-    // float diffDistance = sqrt(pow(diffxyzrpy(0), 2) + pow(diffxyzrpy(1), 2)); //[m]
-    // float diffAngle = fabs(diffxyzrpy(5) * 180.0/3.141592); // [deg]
-    // std:: cout << "diffDistance: " << diffDistance << " | diffAngle: " << diffAngle << std::endl;
-    prediction(diffOdom); // !!!!
-    odomBefore = pose; // !!!!
-    // if(diffDistance > minOdomDistance || diffAngle > minOdomAngle){
-    //     // prediction(diffOdom); // !!!! 밖으로 꺼내 
-    //     // weightning(scan);
+    Eigen::VectorXf diffxyzrpy = tool::eigen2xyzrpy(diffOdom);
+    
+    float diffDistance = sqrt(pow(diffxyzrpy(0), 2) + pow(diffxyzrpy(1), 2)); //[m]
+    float diffAngle = fabs(diffxyzrpy(5) * 180.0/3.141592); // [deg]
+    
+    if(diffDistance > minOdomDistance || diffAngle > minOdomAngle){
+        prediction(diffOdom); 
+        weightning(scan);
 
-    //     predictionCounter++;
-    //     if(predictionCounter == repropagateCountNeeded){
-    //         // resampling();
-    //         predictionCounter = 0;
-    //     }
+        predictionCounter++;
+        if(predictionCounter == repropagateCountNeeded){
+            resampling();
+            predictionCounter = 0;
+        }
 
-    //     m_sync_count = m_sync_count +1;
-    //     odomBefore = pose;
-    // }
+        m_sync_count = m_sync_count +1;
+        odomBefore = pose;
+    }
 }
