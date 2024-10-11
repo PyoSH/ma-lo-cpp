@@ -69,7 +69,7 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr &msg){
     pcl::PassThrough<pcl::PointXYZ> pass;
     pass.setInputCloud(pc_vx_filtered);
     pass.setFilterFieldName("z");
-    pass.setFilterLimits(-2.0, 2.0);  // 원하는 z 값 범위를 설정
+    pass.setFilterLimits(-0.5, 1.5);  // 원하는 z 값 범위를 설정
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_filtered(new pcl::PointCloud<pcl::PointXYZ>);
     pass.filter(*pc_filtered);
 

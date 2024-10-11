@@ -46,12 +46,22 @@ private:
     float mapCenterX;
     float mapCenterY;
     float mapCenterZ;
+    
     float odomCovariance[6];
     int numOfParticle;
     std::vector<particle> particles;
     particle maxProbParticle;
+    
     cv::Mat gridMap_show; // Gridmap for showing
     cv::Mat gridMap_use; // Gridmap for use (gaussian-blurred)
+    
+    std::vector<cv::Point> mapCorners; // 1D array to check particle is inside contour of map
+    int cornerXmin;
+    int cornerYmin;
+    int cornerXmax;
+    int cornerYmax;
+
+    double epsilon;
     Eigen::Matrix4f odomBefore;
     float minOdomDistance;
     float minOdomAngle;
@@ -66,6 +76,7 @@ private:
     bool is1stPose;
     int predictionCounter;
 
+    mcl::particle createRandomParticle();
     void initializeParticles();
     void prediction(Eigen::Matrix4f diffPose);
     void weightning(Eigen::Matrix4Xf laser);

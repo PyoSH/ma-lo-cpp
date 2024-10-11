@@ -4,11 +4,40 @@ mcl::mcl(){
     m_sync_count = 0;
     gen.seed(rd());
 
-    gridMap_show = cv::imread("/home/pyo/erodedMap.png", cv::IMREAD_GRAYSCALE);
+    gridMap_show = cv::imread("/home/pyo/map.png", cv::IMREAD_GRAYSCALE);
     gridMap_use = cv::imread("/home/pyo/erodedMap.png", cv::IMREAD_GRAYSCALE);
+    std::vector<std::vector<cv::Point>> contours;
+    cv::findContours(gridMap_use, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
-    numOfParticle = 100; // 2500
-    minOdomDistance = 0.05; //[m]
+    epsilon = 10.0;  // 허용 오차 값 (이미지 크기에 따라 조정 필요)
+    std::vector<std::vector<cv::Point>> simplifiedContours;
+
+    for (const auto& contour : contours) {
+        std::vector<cv::Point> simplified = tool::getPolygonMap(contour, epsilon);
+        simplifiedContours.push_back(simplified);
+    }
+
+    mapCorners = simplifiedContours[0];
+
+    cornerXmin = mapCorners[0].x;
+    cornerXmax = mapCorners[0].x;
+    cornerYmin = mapCorners[0].y;
+    cornerYmin = mapCorners[0].y;
+    for(const auto& corner : mapCorners) {
+        if (corner.x < cornerXmin) {
+            cornerXmin = corner.x;
+        }if (corner.x > cornerXmax) {
+            cornerXmax = corner.x;
+        }if (corner.y < cornerYmin) {
+            cornerYmin = corner.y;
+        }if (corner.y > cornerYmax) {
+            cornerYmax = corner.y;
+        }
+    }
+    std::cout<< "X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
+
+    numOfParticle = 10; // 2500
+    minOdomDistance = 0.01; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 1; // [num]
     odomCovariance[0] = 0.02; // Rotation to Rotation
@@ -18,7 +47,7 @@ mcl::mcl(){
     odomCovariance[4] = 0.02; // X
     odomCovariance[5] = 0.02; // Y
 
-    imageResolution = 0.1; // [m] per [pixel]
+    imageResolution = 0.05; // [m] per [pixel]
     roll_rad = -90* M_PI / 180.0;
     pitch_rad = 0;
     yaw_rad = -90* M_PI / 180.0;
@@ -34,12 +63,32 @@ mcl::mcl(){
     is1stPose = true;
     predictionCounter = 0;
     
-    // initializeParticles();
+    initializeParticles();
     // showInMap();
 }
 
 mcl::~mcl(){
 
+}
+
+mcl::particle mcl::createRandomParticle(){
+    std::uniform_real_distribution<float> x_pos(cornerXmin * imageResolution, cornerXmax * imageResolution);
+    std::uniform_real_distribution<float> y_pos(cornerYmin * imageResolution, cornerYmax * imageResolution);
+    std::uniform_real_distribution<float> theta_pos(-M_PI, M_PI); // -180~180 [deg]
+
+    float randomX, randomY, randomTheta;
+    particle retval;
+    do{
+        randomX = x_pos(gen);
+        randomY = y_pos(gen);
+        randomTheta = theta_pos(gen);
+    }
+    while(!tool::isInside(mapCorners, (double)(randomX/imageResolution), (double)(randomY/imageResolution)));
+    
+    retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, randomTheta);
+    retval.score = 1/(double)numOfParticle;
+
+    return retval;
 }
 
 void mcl::initializeParticles(){
@@ -48,34 +97,16 @@ void mcl::initializeParticles(){
     * !!! 맵의 가로 크기를 4로 나눔 -> 입자 초기화 범위를 전체 맵의 중앙에 분포하도록. <- 계산 트릭인듯
     * 맵 전체에 분포되도록 하려면 2로 나눌 것!!!
     */
-    std::uniform_real_distribution<float> x_pos(mapCenterX - gridMap_use.cols * imageResolution / 8.0,
-                mapCenterX + gridMap_use.cols * imageResolution / 8.0);
-    std::uniform_real_distribution<float> y_pos(mapCenterY - gridMap_use.rows * imageResolution / 8.0,
-                mapCenterY + gridMap_use.rows * imageResolution / 8.0);
-    std::uniform_real_distribution<float> theta_pos(-M_PI, M_PI); // -180~180 [deg]
-    std::cout <<"mapCenterX " <<mapCenterX << " |mapCenterY " << mapCenterY << std::endl;
-
+    
     for(int i=0; i<numOfParticle; ++i){
         Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
-
         particle currParticle;
-        float randomX = x_pos(gen);
-        float randomY = y_pos(gen);
-        float randomTheta = theta_pos(gen);
-        currParticle.pose = tool::xyzrpy2eigen(randomX, randomY, 0,0,0, initPose(5));
-        // Eigen::Matrix4f initMat;
-        // tf::Quaternion q(0.0008111767238005996, -0.0017652192618697882, -0.6371458172798157, 0.7707408666610718);
-        // tf::Matrix3x3 m(q);
-        // initMat<< m[0][0], m[0][1], m[0][2], 5.2161173820495605,
-        //           m[1][0], m[1][1], m[1][2], 8.907722473144531,
-        //           m[2][0], m[2][1], m[2][2], 0,
-        //           0,0,0,1;
         
-        // currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), initPose(2),0,0, initPose(5)); // !!!
+        currParticle = createRandomParticle();
+        // currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), 0,0,0, initPose(5));
         currParticle.score = 1/(double)numOfParticle;
         particles.emplace_back(currParticle);
     }
-    // showInMap();
 }
 
 void mcl::prediction(Eigen::Matrix4f diffPose){
@@ -229,7 +260,7 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
         mapCenterY = pose(1,3);
         mapCenterZ = pose(2,3);
 
-        initializeParticles();
+        // initializeParticles();
         is1stPose = false;
     }
     // std::cout <<"UPDATE-DATA Pose_t: \n"<< pose << std::endl; // ?!?

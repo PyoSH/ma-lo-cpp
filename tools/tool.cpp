@@ -11,7 +11,7 @@ cv::Mat cvMaptoMCLMap(cv::Mat mat)
     {
       unsigned char val = mat.at<unsigned char>(j,i);
       if(val>100 && val<150) mat.at<unsigned char>(j,i)=255;
-      // else if(val<128) mat.at<unsigned char>(j,i)=255-val;
+      // else if(val<128) mat.at<unsigned char>(j,i)=255-bool isInMap();val;
       else if(val>128) mat.at<unsigned char>(j,i)=255-val;
     }
   }
@@ -161,5 +161,68 @@ Eigen::Matrix3f get_rotation_matrix(float roll, float pitch, float yaw) {
 
     return rotation_matrix;
 }
+
+/*
+* 지도 안에 있는지르 확인하기 위한 코드. 
+* inside polygon test : Ray-casting 알고리즘
+*/
+bool isInside(const std::vector<cv::Point> points,double x, double y){
+  bool isIn = false;
+  for(int i=0; i<points.size(); ++i){
+    int j = (i + points.size()-1) % points.size();
+    if((points[i].y > y) != (points[j].y > y) 
+      && (x < (points[j].x - points[i].x) * (y-points[i].y)/(points[j].y -points[i].y) + points[i].x)){
+      isIn = !isIn;
+    }   
+  }
+  std::cout << "isInside: " << x << " | " << y << " is " <<isIn << std::endl;
+  return isIn;
+}
+
+/*
+* 지도의 경계를 다각형으로 근사하기 -> ray-casting 알고리즘 써먹기 위해서!
+*/
+std::vector<cv::Point> getPolygonMap(const std::vector<cv::Point>& points, float epsilon){
+  // 1. find 1st and last point
+  cv::Point start = points.front();
+  cv::Point end = points.back();
+
+  // 2. find most far away point
+  double dmax = 0;
+  int idx = 0;
+  for(int i=0; i<points.size(); ++i){
+    double currDist = perpendicular_distance(points[i], start, end);
+    if (currDist > dmax){
+      idx = i;
+      dmax = currDist;
+    }
+  }
+
+  // 3. if the point is bigger than epsilon, divide with that point. 
+  if(dmax > epsilon){
+    std::vector<cv::Point> left(points.begin(), std::next(points.begin(), idx + 1));
+    std::vector<cv::Point> right(std::next(points.begin(), idx), points.end());
+    std::vector<cv::Point> result_left = getPolygonMap(left, epsilon);
+    std::vector<cv::Point> result_right = getPolygonMap(right, epsilon);
+
+    // 4. put them together(중복된 가장 먼 점을 제거하기 위해 result_left의 마지막 점을 제외)
+    result_left.pop_back();
+    result_left.insert(result_left.end(), result_right.begin(), result_right.end());
+    return result_left;
+  }else{
+    return {start, end};
+  }
+}
+
+/*
+* 점과 직선(start, end) 사이의 직선 거리 반환
+*/ 
+double perpendicular_distance(const cv::Point point, const cv::Point start, const cv::Point end){ 
+  if(start == end) return sqrt(pow(point.x-start.x,2) + pow(point.y-start.y,2));
+  else{
+    float line_length = sqrt(pow((end.y - start.y),2) + pow((end.x - start.x),2));
+    return fabs((end.y - start.y) * point.x - (end.x - start.x) * point.y + end.x * start.y - end.y * start.x) / line_length;
+  }  
+} 
 
 }

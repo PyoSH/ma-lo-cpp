@@ -1,8 +1,8 @@
 #include "map_RT.h"
 
 map_rt::map_rt() {
-    mapWidth = 900;
-    mapHeight = 900;
+    mapWidth = 2000;
+    mapHeight = 2000;
     mapResolution = 0.05; //  meter per pixel
     mapCenterX= 0;
     mapCenterY= 0;
