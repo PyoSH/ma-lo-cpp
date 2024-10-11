@@ -34,9 +34,9 @@ mcl::mcl(){
             cornerYmax = corner.y;
         }
     }
-    std::cout<< "X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
+    std::cout<< "[px] X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
 
-    numOfParticle = 10; // 2500
+    numOfParticle = 100; // 2500
     minOdomDistance = 0.01; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 1; // [num]
@@ -64,7 +64,7 @@ mcl::mcl(){
     predictionCounter = 0;
     
     initializeParticles();
-    // showInMap();
+    showInMap();
 }
 
 mcl::~mcl(){
@@ -72,8 +72,10 @@ mcl::~mcl(){
 }
 
 mcl::particle mcl::createRandomParticle(){
-    std::uniform_real_distribution<float> x_pos(cornerXmin * imageResolution, cornerXmax * imageResolution);
-    std::uniform_real_distribution<float> y_pos(cornerYmin * imageResolution, cornerYmax * imageResolution);
+    std::uniform_real_distribution<float> x_pos((((cornerXmax + cornerXmin)/2.0) - ((cornerXmax - cornerXmin) /4.0)) * imageResolution, 
+                                        (((cornerXmax + cornerXmin)/2.0) + ((cornerXmax - cornerXmin) /4.0)) * imageResolution); // [m]
+    std::uniform_real_distribution<float> y_pos((((cornerYmax + cornerYmin)/2.0) - ((cornerYmax - cornerYmin) /4.0)) * imageResolution, 
+                                        (((cornerYmax + cornerYmin)/2.0) + ((cornerYmax - cornerYmin) /4.0)) * imageResolution); // [m]
     std::uniform_real_distribution<float> theta_pos(-M_PI, M_PI); // -180~180 [deg]
 
     float randomX, randomY, randomTheta;
@@ -83,9 +85,9 @@ mcl::particle mcl::createRandomParticle(){
         randomY = y_pos(gen);
         randomTheta = theta_pos(gen);
     }
-    while(!tool::isInside(mapCorners, (double)(randomX/imageResolution), (double)(randomY/imageResolution)));
+    while(!tool::isInside(mapCorners, (double)(randomX/imageResolution), (double)(randomY/imageResolution))); // [px]
     
-    retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, randomTheta);
+    retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, randomTheta); // [m]
     retval.score = 1/(double)numOfParticle;
 
     return retval;
@@ -107,6 +109,7 @@ void mcl::initializeParticles(){
         currParticle.score = 1/(double)numOfParticle;
         particles.emplace_back(currParticle);
     }
+    showInMap();
 }
 
 void mcl::prediction(Eigen::Matrix4f diffPose){
@@ -222,8 +225,8 @@ void mcl::showInMap(){
 
     // draw particles in blue dots
     for(int i=0; i<numOfParticle; ++i){
-        int poseX_px = static_cast<int>((particles.at(i).pose(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
-        int poseY_px = static_cast<int>((particles.at(i).pose(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
+        int poseX_px = static_cast<int>((particles.at(i).pose(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
+        int poseY_px = static_cast<int>((particles.at(i).pose(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
         cv::circle(showMap, cv::Point(poseX_px, poseY_px), 5, cv::Scalar(255,0,0), -1); // 1
     }
 

@@ -175,7 +175,7 @@ bool isInside(const std::vector<cv::Point> points,double x, double y){
       isIn = !isIn;
     }   
   }
-  std::cout << "isInside: " << x << " | " << y << " is " <<isIn << std::endl;
+  std::cout << "[px] isInside: " << x << " | " << y << " is " <<isIn << std::endl;
   return isIn;
 }
 
