@@ -4,7 +4,7 @@ mcl::mcl(){
     m_sync_count = 0;
     gen.seed(rd());
 
-    gridMap_show = cv::imread("/home/pyo/map.png", cv::IMREAD_GRAYSCALE);
+    gridMap_show = cv::imread("/home/pyo/erodedMap.png", cv::IMREAD_GRAYSCALE);
     gridMap_use = cv::imread("/home/pyo/erodedMap.png", cv::IMREAD_GRAYSCALE);
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(gridMap_use, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
@@ -36,7 +36,7 @@ mcl::mcl(){
     }
     std::cout<< "[px] X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
 
-    numOfParticle = 100; // 2500
+    numOfParticle = 1000; // 2500
     minOdomDistance = 0.01; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 1; // [num]
@@ -179,9 +179,15 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
     float scoreSum = 0;
 
     for(int i=0; i<particles.size(); ++i){
+        particle currParticle = particles.at(i);
+        double px_particleX = (int)((currParticle.pose(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
+        double px_particleY = (int)((currParticle.pose(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
+        // if(!tool::isInside(mapCorners, px_particleX, px_particleY)){
+        //     particles.at(i).pose = createRandomParticle().pose;
+        // }
+
         Eigen::Matrix4Xf transScan = particles.at(i).pose * tf_pc2robot * scan;
         float calcedWeight = 0;
-
         for(int j=0; j<transScan.cols(); ++j){
             int ptX_px = static_cast<int>((transScan(0,j) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
             int ptY_px = static_cast<int>((transScan(1,j) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
@@ -189,7 +195,6 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
             if(gridMap_use.cols <= ptX_px || ptX_px < 0 || gridMap_use.rows <= ptY_px || ptY_px < 0) continue;
             else{
                 double img_val = gridMap_use.at<uchar>(ptX_px, ptY_px)/(double)255; // calc the score
-                // std::cout << "WEIGHTNING - img_val "<<img_val << std::endl;
                 calcedWeight += img_val; // sum up the score
             }
         }
