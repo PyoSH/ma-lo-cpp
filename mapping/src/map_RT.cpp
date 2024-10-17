@@ -108,7 +108,7 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
     cv::imwrite("/home/pyo/erodedMap.png", img_save);
 
     double avg_time = (t1+t2)/2.0;
-    // // 1. PUB them into Image
+    // 1. PUB them into Image
     // sensor_msgs::ImagePtr map_msg = cv_bridge::CvImage(std_msgs::Header(), "mono8", image_new).toImageMsg();
     // map_msg->header.stamp = ros::Time(avg_time);
     // map_msg->header.frame_id = "map"; 

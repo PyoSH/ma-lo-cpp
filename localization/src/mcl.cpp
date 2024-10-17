@@ -63,8 +63,8 @@ mcl::mcl(){
     is1stPose = true;
     predictionCounter = 0;
     
-    initializeParticles();
-    showInMap();
+    // initializeParticles();
+    // showInMap();
 }
 
 mcl::~mcl(){
@@ -72,20 +72,30 @@ mcl::~mcl(){
 }
 
 mcl::particle mcl::createRandomParticle(){
-    std::uniform_real_distribution<float> x_pos((((cornerXmax + cornerXmin)/2.0) - ((cornerXmax - cornerXmin) /4.0)) * imageResolution, 
-                                        (((cornerXmax + cornerXmin)/2.0) + ((cornerXmax - cornerXmin) /4.0)) * imageResolution); // [m]
-    std::uniform_real_distribution<float> y_pos((((cornerYmax + cornerYmin)/2.0) - ((cornerYmax - cornerYmin) /4.0)) * imageResolution, 
-                                        (((cornerYmax + cornerYmin)/2.0) + ((cornerYmax - cornerYmin) /4.0)) * imageResolution); // [m]
+    float px_Xmin = (cornerXmax + cornerXmin)/2.0 - ((cornerXmax - cornerXmin) /2.0); // [px]
+    float px_Xmax = (cornerXmax + cornerXmin)/2.0 + ((cornerXmax - cornerXmin) /2.0); // [px]
+    float px_Ymin = (cornerYmax + cornerYmin)/2.0 - ((cornerYmax - cornerYmin) /2.0); // [px]
+    float px_Ymax = (cornerYmax + cornerYmin)/2.0 + ((cornerYmax - cornerYmin) /2.0); // [px]
+    int px_randomX, px_randomY;
+
+    std::uniform_real_distribution<float> x_pos((px_Xmin - (gridMap_use.cols/2.0)) * imageResolution + mapCenterX, 
+                                        (px_Xmax - (gridMap_use.cols/2.0)) * imageResolution + mapCenterX); // [m]
+    std::uniform_real_distribution<float> y_pos((px_Ymin - (gridMap_use.rows/2.0)) * imageResolution + mapCenterY, 
+                                        (px_Ymax - (gridMap_use.rows/2.0)) * imageResolution + mapCenterY); // [m]
     std::uniform_real_distribution<float> theta_pos(-M_PI, M_PI); // -180~180 [deg]
 
     float randomX, randomY, randomTheta;
     particle retval;
     do{
-        randomX = x_pos(gen);
-        randomY = y_pos(gen);
-        randomTheta = theta_pos(gen);
+        randomX = x_pos(gen); // [m]
+        randomY = y_pos(gen); // [m]
+        randomTheta = theta_pos(gen); // [deg]
+
+        px_randomX = (int)((randomX - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
+        px_randomY = (int)((randomY - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
     }
-    while(!tool::isInside(mapCorners, (double)(randomX/imageResolution), (double)(randomY/imageResolution))); // [px]
+    while(!tool::isInside(mapCorners, (double)(px_randomX), (double)(px_randomY))); // [px]
+    std::cout << "createRandom- " << px_randomX << " | "<< px_randomY << std::endl;
     
     retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, randomTheta); // [m]
     retval.score = 1/(double)numOfParticle;
@@ -108,7 +118,10 @@ void mcl::initializeParticles(){
         // currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), 0,0,0, initPose(5));
         currParticle.score = 1/(double)numOfParticle;
         particles.emplace_back(currParticle);
+
+        std::cout << "init- " << (int)currParticle.pose(0,3)/imageResolution << " | "<< (int)currParticle.pose(1,3)/imageResolution << std::endl;
     }
+    
     showInMap();
 }
 
@@ -227,6 +240,8 @@ void mcl::showInMap(){
     for(int i=0; i<numOfParticle; ++i){
         int poseX_px = static_cast<int>((particles.at(i).pose(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
         int poseY_px = static_cast<int>((particles.at(i).pose(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
+
+        // std::cout << "draw- " << poseX_px << " | "<< poseY_px << std::endl;
         cv::circle(showMap, cv::Point(poseX_px, poseY_px), 5, cv::Scalar(255,0,0), -1); // 1
     }
 
@@ -263,7 +278,7 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
         mapCenterY = pose(1,3);
         mapCenterZ = pose(2,3);
 
-        // initializeParticles();
+        initializeParticles();
         is1stPose = false;
     }
     // std::cout <<"UPDATE-DATA Pose_t: \n"<< pose << std::endl; // ?!?
