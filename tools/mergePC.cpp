@@ -6,7 +6,7 @@
 #include <pcl_conversions/pcl_conversions.h>  // ros msg -> point cloud
 #include <pcl/filters/passthrough.h>  // 범위 필터
 #include <pcl/filters/voxel_grid.h>  // 다운샘플링 필터
-#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/filters/passthrough.h>  // 범위 필터
 #include "tool.h"
 
 std::deque<Eigen::Matrix4Xf> vec_scan_F;
@@ -56,11 +56,12 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg, const std::str
     pcl::PassThrough<pcl::PointXYZ> pass;
     pass.setInputCloud(pc_vx_filtered);
     // pass.setFilterFieldName("x");
-    // pass.setFilterLimits(-2.0, 2.0);  // 원하는 z 값 범위를 설정
-    // pass.setFilterFieldName("y");
-    // pass.setFilterLimits(-2.0, 2.0);  // 원하는 z 값 범위를 설정
-    pass.setFilterFieldName("z");
-    pass.setFilterLimits(0.0, 10.0);  // 원하는 z 값 범위를 설정
+    // pass.setFilterLimits(-2.0, 2.0);  
+     pass.setFilterFieldName("y");
+    pass.setFilterLimits(0.2, 1.0);  
+     pass.setFilterFieldName("z");
+    pass.setFilterLimits(0.1, 6.0); 
+    
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_filtered(new pcl::PointCloud<pcl::PointXYZ>);
     pass.filter(*pc_filtered);
 
@@ -73,8 +74,8 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg, const std::str
         // std::cout<<"CB - SCAN 2"<<std::endl;
         pcl::PointXYZ currPoint = pc_filtered->points[i];
         // std::cout<<"CB - SCAN 3"<<std::endl;
-        // float dist = sqrt(pow(currPoint.x,2) + pow(currPoint.y,2) + pow(currPoint.z,2));
-        // if(0.2 < dist && dist < 5) {
+        float dist = sqrt(pow(currPoint.x,2) + pow(currPoint.y,2) + pow(currPoint.z,2));
+        if(0.2 < dist && dist < 4) {
             usefulPoint++;
             eigenScan.conservativeResize(4, usefulPoint);
             eigenScan(0,usefulPoint-1) = currPoint.x;
@@ -154,10 +155,10 @@ void merge_AND_pub(Eigen::Matrix4Xf scan1, Eigen::Matrix4Xf scan2, double t1, do
     // pack into ROS msg with avg time 
     sensor_msgs::PointCloud2 output_msg;
     pcl::toROSMsg(merged_PC_pcl, output_msg);
-    output_msg.header.frame_id = 'map';
+    output_msg.header.frame_id = "odom";
     double avg_time = (t1 + t2) / 2.0;
-    output_msg.header.stamp = ros::Time(avg_time);
-    // output_msg.header.stamp = ros::Time::now();
+    // output_msg.header.stamp = ros::Time(avg_time);
+    output_msg.header.stamp = ros::Time::now();
     
     // pub them
     static ros::Publisher pub_mergedPC = ros::NodeHandle().advertise<sensor_msgs::PointCloud2>("/merged_pointcloud", 100);
