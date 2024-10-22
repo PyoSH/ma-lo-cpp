@@ -82,7 +82,7 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg, const std::str
             eigenScan(1,usefulPoint-1) = currPoint.y;
             eigenScan(2,usefulPoint-1) = currPoint.z;
             eigenScan(3,usefulPoint-1) = 1;
-        // }
+        }
     }
 
     if (topic_name == "/F/depth/color/points") {
@@ -130,9 +130,9 @@ void merge_AND_pub(Eigen::Matrix4Xf scan1, Eigen::Matrix4Xf scan2, double t1, do
     float yaw_rad = 0;
     Eigen::Matrix3f rotation = tool::get_rotation_matrix(roll_rad, pitch_rad, yaw_rad);
     tf_2to1.block<3,3>(0,0) << rotation;
-    tf_2to1(0,3) = 0;
+    tf_2to1(0,3) = 0.15;
     tf_2to1(1,3) = 0;
-    tf_2to1(2,3) = 0;
+    tf_2to1(2,3) = -0.3;
     tf_2to1(3,3) = 1;
 
     // apply tf to scan2
@@ -157,8 +157,8 @@ void merge_AND_pub(Eigen::Matrix4Xf scan1, Eigen::Matrix4Xf scan2, double t1, do
     pcl::toROSMsg(merged_PC_pcl, output_msg);
     output_msg.header.frame_id = "odom";
     double avg_time = (t1 + t2) / 2.0;
-    // output_msg.header.stamp = ros::Time(avg_time);
-    output_msg.header.stamp = ros::Time::now();
+    output_msg.header.stamp = ros::Time(avg_time);
+    // output_msg.header.stamp = ros::Time::now();
     
     // pub them
     static ros::Publisher pub_mergedPC = ros::NodeHandle().advertise<sensor_msgs::PointCloud2>("/merged_pointcloud", 100);

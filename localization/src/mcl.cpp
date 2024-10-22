@@ -36,7 +36,7 @@ mcl::mcl(){
     }
     std::cout<< "[px] X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
 
-    numOfParticle = 1000; // 2500
+    numOfParticle = 100; // 2500
     minOdomDistance = 0.01; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 1; // [num]
@@ -97,7 +97,9 @@ mcl::particle mcl::createRandomParticle(){
     while(!tool::isInside(mapCorners, (double)(px_randomX), (double)(px_randomY))); // [px]
     std::cout << "createRandom- " << px_randomX << " | "<< px_randomY << std::endl;
     
-    retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, randomTheta); // [m]
+    Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
+    // retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, randomTheta); // [m]
+    retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, initPose(5)); // [m]
     retval.score = 1/(double)numOfParticle;
 
     return retval;
@@ -179,9 +181,9 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
     float scoreSum = 0;
 
     for(int i=0; i<particles.size(); ++i){
-        particle currParticle = particles.at(i);
-        double px_particleX = (int)((currParticle.pose(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
-        double px_particleY = (int)((currParticle.pose(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
+        // particle currParticle = particles.at(i);
+        // double px_particleX = (int)((currParticle.pose(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
+        // double px_particleY = (int)((currParticle.pose(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
         // if(!tool::isInside(mapCorners, px_particleX, px_particleY)){
         //     particles.at(i).pose = createRandomParticle().pose;
         // }

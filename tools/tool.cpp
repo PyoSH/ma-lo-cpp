@@ -225,4 +225,78 @@ double perpendicular_distance(const cv::Point point, const cv::Point start, cons
   }  
 } 
 
+void removeGroundPlane(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, 
+                       pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud) {
+  // Create a segmentation object for the plane model
+  pcl::SACSegmentation<pcl::PointXYZ> seg;
+  pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+  pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+  seg.setOptimizeCoefficients(true);
+  seg.setModelType(pcl::SACMODEL_PLANE);
+  seg.setMethodType(pcl::SAC_RANSAC);
+  seg.setDistanceThreshold(0.01);  // 조정 가능한 거리 임계값 (바닥 면 허용 오차)
+
+  // Perform segmentation to find inliers that represent the ground plane
+  seg.setInputCloud(input_cloud);
+  seg.segment(*inliers, *coefficients);
+
+  if (inliers->indices.empty()) {
+      std::cerr << "Could not estimate a planar model for the given dataset." << std::endl;
+      return;
+  }
+
+  // Extract the points that are not part of the ground plane
+  pcl::ExtractIndices<pcl::PointXYZ> extract;
+  extract.setInputCloud(input_cloud);
+  extract.setIndices(inliers);
+  extract.setNegative(false);  // true로 설정하여 평면 이외의 점들만 추출
+  extract.filter(*output_cloud);
+}
+
+void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, 
+                                 pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud, 
+                                 float distance_threshold, float normal_threshold) {
+  // Create a segmentation object for the plane model with normal constraints
+  pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
+  pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
+  pcl::ModelCoefficients::Ptr coefficients(new pcl::ModelCoefficients);
+  pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
+  pcl::PointCloud<pcl::Normal>::Ptr cloud_normals(new pcl::PointCloud<pcl::Normal>);
+
+  // Create a KD-Tree for the normal estimation
+  pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
+  ne.setSearchMethod(tree);
+  ne.setInputCloud(input_cloud);
+  ne.setKSearch(50);  // Set the number of nearest neighbors to use for normal estimation
+  ne.compute(*cloud_normals);
+
+  // Configure the segmentation object
+  seg.setOptimizeCoefficients(true);
+  seg.setModelType(pcl::SACMODEL_NORMAL_PLANE);
+  seg.setMethodType(pcl::SAC_RANSAC);
+  seg.setDistanceThreshold(distance_threshold);
+  seg.setInputCloud(input_cloud);
+  seg.setInputNormals(cloud_normals);
+  
+  // Set axis for the plane to be near the xz plane (i.e., y-axis normal)
+  // Eigen::Vector3f axis(0.0, 1.0, 0.0);  // y-axis direction
+  Eigen::Vector3f axis(1.0, 0.0, 1.0);  // z-axis direction
+  seg.setAxis(axis);
+  seg.setEpsAngle(normal_threshold);  // [rad] Allowable angle deviation from the axis
+
+  // Perform segmentation
+  seg.segment(*inliers, *coefficients);
+
+  if (inliers->indices.empty()) {
+      std::cerr << "Could not estimate a planar model for the given dataset." << std::endl;
+      return;
+  }
+
+  pcl::ExtractIndices<pcl::PointXYZ> extract;
+  extract.setInputCloud(input_cloud);
+  extract.setIndices(inliers);
+  extract.setNegative(false);  
+  extract.filter(*output_cloud);
+}
+
 }

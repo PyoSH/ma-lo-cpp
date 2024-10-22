@@ -60,27 +60,31 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr &msg){
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_xyz(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::fromROSMsg(*msg, *pc_xyz);
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr pc_vx_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-    pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
-    voxel_filter.setInputCloud(pc_xyz);
-    voxel_filter.setLeafSize(0.05, 0.05, 0.05);
-    voxel_filter.filter(*pc_vx_filtered);
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr pc_vx_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+    // pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
+    // voxel_filter.setInputCloud(pc_xyz);
+    // voxel_filter.setLeafSize(0.05, 0.05, 0.05);
+    // voxel_filter.filter(*pc_vx_filtered);
 
-    pcl::PassThrough<pcl::PointXYZ> pass;
-    pass.setInputCloud(pc_vx_filtered);
-    pass.setFilterFieldName("z");
-    pass.setFilterLimits(-0.5, 1.5);  // 원하는 z 값 범위를 설정
-    pcl::PointCloud<pcl::PointXYZ>::Ptr pc_filtered(new pcl::PointCloud<pcl::PointXYZ>);
-    pass.filter(*pc_filtered);
+    // pcl::PassThrough<pcl::PointXYZ> pass;
+    // pass.setInputCloud(pc_vx_filtered);
+    // pass.setFilterFieldName("z");
+    // pass.setFilterLimits(-0.5, 1.5);  // 원하는 z 값 범위를 설정
+    // pcl::PointCloud<pcl::PointXYZ>::Ptr pc_filtered(new pcl::PointCloud<pcl::PointXYZ>);
+    // pass.filter(*pc_filtered);
+    pcl::PointCloud<pcl::PointXYZ>::Ptr pc_no_ground(new pcl::PointCloud<pcl::PointXYZ>);
+    // tool::removeGroundPlane(pc_xyz, pc_no_ground);
+    tool::removeGroundPlaneWithNormal(pc_xyz, pc_no_ground, 0.01, 0.1);
 
-    int pointNum = pc_filtered->points.size();
+
+    int pointNum = pc_no_ground->points.size();
     Eigen::Matrix4Xf eigenScan = Eigen::Matrix4Xf::Ones(4, 1);
     int usefulPoint = 0;
     // std::cout<<"CB - pointNum "<< pointNum <<std::endl;
 
     for(int i = 0; i < pointNum; i++) {
         // std::cout<<"CB - SCAN 2"<<std::endl;
-        pcl::PointXYZ currPoint = pc_filtered->points[i];
+        pcl::PointXYZ currPoint = pc_no_ground->points[i];
         // std::cout<<"CB - SCAN 3"<<std::endl;
         float dist = sqrt(pow(currPoint.x,2) + pow(currPoint.y,2) + pow(currPoint.z,2));
         if(0.2 < dist && dist < 5) {

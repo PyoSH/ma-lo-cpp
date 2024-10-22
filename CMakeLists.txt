@@ -52,3 +52,8 @@ target_link_libraries(mcl_test
 add_executable(mergePC tools/mergePC.cpp ${tool_source})
 target_link_libraries(mergePC
         ${catkin_LIBRARIES} ${PCL_LIBRARIES})
+
+# test-segmentGround
+add_executable(segmentGround tools/segmentGround.cpp ${tool_source})
+target_link_libraries(segmentGround
+        ${catkin_LIBRARIES} ${PCL_LIBRARIES})
