@@ -12,6 +12,8 @@
 void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg);
 void pubThis(Eigen::Matrix4Xf scan, double t1);
 
+float min_y = -1.0;
+float max_y = -0.1;
 
 int main(int argc,char **argv) {
     ros::init(argc, argv, "groundRemoval");
@@ -34,7 +36,8 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg) {
     pcl::fromROSMsg(*msg, *pc_xyz);
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_noGround(new pcl::PointCloud<pcl::PointXYZ>);
-    tool::removeGroundPlaneWithNormal(pc_xyz, pc_noGround, 0.1, 0.2);
+    // tool::removeGroundPlane(pc_xyz, pc_noGround);
+    tool::removeGroundPlaneWithNormal(pc_xyz, pc_noGround, 0.1, 0.1, min_y, max_y);
 
     int pointNum = pc_noGround->points.size();
     Eigen::Matrix4Xf eigenScan = Eigen::Matrix4Xf::Ones(4, 1);

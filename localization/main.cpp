@@ -73,8 +73,8 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr &msg){
     // pcl::PointCloud<pcl::PointXYZ>::Ptr pc_filtered(new pcl::PointCloud<pcl::PointXYZ>);
     // pass.filter(*pc_filtered);
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_no_ground(new pcl::PointCloud<pcl::PointXYZ>);
-    // tool::removeGroundPlane(pc_xyz, pc_no_ground);
-    tool::removeGroundPlaneWithNormal(pc_xyz, pc_no_ground, 0.01, 0.1);
+    tool::removeGroundPlane(pc_xyz, pc_no_ground);
+    // tool::removeGroundPlaneWithNormal(pc_xyz, pc_no_ground, 0.01, 0.1);
 
 
     int pointNum = pc_no_ground->points.size();

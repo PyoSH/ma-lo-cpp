@@ -236,26 +236,37 @@ void removeGroundPlane(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud,
   seg.setMethodType(pcl::SAC_RANSAC);
   seg.setDistanceThreshold(0.01);  // 조정 가능한 거리 임계값 (바닥 면 허용 오차)
 
-  // Perform segmentation to find inliers that represent the ground plane
-  seg.setInputCloud(input_cloud);
-  seg.segment(*inliers, *coefficients);
+  // ROI setting
+  pcl::PointCloud<pcl::PointXYZ>::Ptr pc_ROI(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PassThrough<pcl::PointXYZ> pass;
+  pass.setInputCloud(input_cloud);
+  pass.setFilterFieldName("y");
+  pass.setFilterLimits(-1.5, -0.2);
+  // pass.setFilterLimitsNegative(true);
+  // pass.filter(*pc_ROI);
+  pass.filter(*output_cloud);
 
-  if (inliers->indices.empty()) {
-      std::cerr << "Could not estimate a planar model for the given dataset." << std::endl;
-      return;
-  }
+  // Perform segmentation to find inliers that represent the ground plane
+  // seg.setInputCloud(pc_ROI);
+  // seg.segment(*inliers, *coefficients);
+
+  // if (inliers->indices.empty()) {
+  //     std::cerr << "Could not estimate a planar model for the given dataset." << std::endl;
+  //     return;
+  // }
 
   // Extract the points that are not part of the ground plane
-  pcl::ExtractIndices<pcl::PointXYZ> extract;
-  extract.setInputCloud(input_cloud);
-  extract.setIndices(inliers);
-  extract.setNegative(false);  // true로 설정하여 평면 이외의 점들만 추출
-  extract.filter(*output_cloud);
+  // pcl::ExtractIndices<pcl::PointXYZ> extract;
+  // extract.setInputCloud(pc_ROI);
+  // extract.setIndices(inliers);
+  // extract.setNegative(true);  // true로 설정하여 평면 이외의 점들만 추출
+  // extract.filter(*output_cloud);
 }
 
 void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, 
                                  pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud, 
-                                 float distance_threshold, float normal_threshold) {
+                                 float distance_threshold, float normal_threshold,
+                                 float& min_y, float& max_y) {
   // Create a segmentation object for the plane model with normal constraints
   pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
   pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
@@ -263,10 +274,19 @@ void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud
   pcl::NormalEstimation<pcl::PointXYZ, pcl::Normal> ne;
   pcl::PointCloud<pcl::Normal>::Ptr cloud_normals(new pcl::PointCloud<pcl::Normal>);
 
+  // ROI setting
+  pcl::PointCloud<pcl::PointXYZ>::Ptr pc_ROI(new pcl::PointCloud<pcl::PointXYZ>);
+  pcl::PassThrough<pcl::PointXYZ> pass;
+  pass.setInputCloud(input_cloud);
+  pass.setFilterFieldName("y");
+  pass.setFilterLimits(min_y, max_y);
+  pass.setFilterLimitsNegative(true);
+  pass.filter(*pc_ROI);
+
   // Create a KD-Tree for the normal estimation
   pcl::search::KdTree<pcl::PointXYZ>::Ptr tree(new pcl::search::KdTree<pcl::PointXYZ>());
   ne.setSearchMethod(tree);
-  ne.setInputCloud(input_cloud);
+  ne.setInputCloud(pc_ROI);
   ne.setKSearch(50);  // Set the number of nearest neighbors to use for normal estimation
   ne.compute(*cloud_normals);
 
@@ -275,12 +295,11 @@ void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud
   seg.setModelType(pcl::SACMODEL_NORMAL_PLANE);
   seg.setMethodType(pcl::SAC_RANSAC);
   seg.setDistanceThreshold(distance_threshold);
-  seg.setInputCloud(input_cloud);
+  seg.setInputCloud(pc_ROI);
   seg.setInputNormals(cloud_normals);
   
   // Set axis for the plane to be near the xz plane (i.e., y-axis normal)
-  // Eigen::Vector3f axis(0.0, 1.0, 0.0);  // y-axis direction
-  Eigen::Vector3f axis(1.0, 0.0, 1.0);  // z-axis direction
+  Eigen::Vector3f axis(0.0, 1.0, 0.0);  // y-axis direction
   seg.setAxis(axis);
   seg.setEpsAngle(normal_threshold);  // [rad] Allowable angle deviation from the axis
 
@@ -292,10 +311,28 @@ void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud
       return;
   }
 
+  pcl::PointCloud<pcl::PointXYZ>::Ptr plane_points(new pcl::PointCloud<pcl::PointXYZ>);
   pcl::ExtractIndices<pcl::PointXYZ> extract;
-  extract.setInputCloud(input_cloud);
+  extract.setInputCloud(pc_ROI);
   extract.setIndices(inliers);
-  extract.setNegative(false);  
+
+  extract.setNegative(false);
+  extract.filter(*plane_points);
+  // Initialize min_y and max_y
+  // min_y = std::numeric_limits<float>::max();
+  // max_y = std::numeric_limits<float>::lowest();
+
+  // Find the minimum and maximum y values among the plane points
+  for (const auto& point : plane_points->points) {
+      if (point.y < min_y) {
+          min_y = point.y;
+      }
+      if (point.y > max_y) {
+          max_y = point.y;
+      }
+  }
+  std::cout << "min y " << min_y << " | max y " << max_y << std::endl;
+  extract.setNegative(true);  
   extract.filter(*output_cloud);
 }
 
