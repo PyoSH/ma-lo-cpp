@@ -265,8 +265,7 @@ void removeGroundPlane(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud,
 
 void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, 
                                  pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud, 
-                                 float distance_threshold, float normal_threshold,
-                                 float& min_y, float& max_y) {
+                                 float distance_threshold, float normal_threshold) {
   // Create a segmentation object for the plane model with normal constraints
   pcl::SACSegmentationFromNormals<pcl::PointXYZ, pcl::Normal> seg;
   pcl::PointIndices::Ptr inliers(new pcl::PointIndices);
@@ -279,7 +278,7 @@ void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud
   pcl::PassThrough<pcl::PointXYZ> pass;
   pass.setInputCloud(input_cloud);
   pass.setFilterFieldName("y");
-  pass.setFilterLimits(min_y, max_y);
+  pass.setFilterLimits(-1.5, -0.2);
   pass.setFilterLimitsNegative(true);
   pass.filter(*pc_ROI);
 
@@ -311,27 +310,9 @@ void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud
       return;
   }
 
-  pcl::PointCloud<pcl::PointXYZ>::Ptr plane_points(new pcl::PointCloud<pcl::PointXYZ>);
   pcl::ExtractIndices<pcl::PointXYZ> extract;
   extract.setInputCloud(pc_ROI);
   extract.setIndices(inliers);
-
-  extract.setNegative(false);
-  extract.filter(*plane_points);
-  // Initialize min_y and max_y
-  // min_y = std::numeric_limits<float>::max();
-  // max_y = std::numeric_limits<float>::lowest();
-
-  // Find the minimum and maximum y values among the plane points
-  for (const auto& point : plane_points->points) {
-      if (point.y < min_y) {
-          min_y = point.y;
-      }
-      if (point.y > max_y) {
-          max_y = point.y;
-      }
-  }
-  std::cout << "min y " << min_y << " | max y " << max_y << std::endl;
   extract.setNegative(true);  
   extract.filter(*output_cloud);
 }

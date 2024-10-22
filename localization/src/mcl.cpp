@@ -194,7 +194,7 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
             int ptX_px = static_cast<int>((transScan(0,j) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
             int ptY_px = static_cast<int>((transScan(1,j) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
             
-            if(gridMap_use.cols <= ptX_px || ptX_px < 0 || gridMap_use.rows <= ptY_px || ptY_px < 0) continue;
+            if(gridMap_use.cols <= ptX_px || ptX_px < 0 || gridMap_use.rows <= ptY_px || ptY_px < 0 || !tool::isInside(mapCorners, ptX_px, ptY_px)) continue;
             else{
                 double img_val = gridMap_use.at<uchar>(ptX_px, ptY_px)/(double)255; // calc the score
                 calcedWeight += img_val; // sum up the score

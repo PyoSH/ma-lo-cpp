@@ -33,6 +33,6 @@ namespace tool
   std::vector<cv::Point> getPolygonMap(const std::vector<cv::Point>& points, float epsilon);
   double perpendicular_distance(cv::Point point, cv::Point start, cv::Point end);
   void removeGroundPlane(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud);
-  void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud, float distance_threshold, float normal_threshold, float& min_y, float& max_y);
+  void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud, float distance_threshold, float normal_threshold);
 }
 #endif
