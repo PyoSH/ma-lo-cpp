@@ -36,7 +36,7 @@ mcl::mcl(){
     }
     std::cout<< "[px] X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
 
-    numOfParticle = 100; // 2500
+    numOfParticle = 200; // 2500
     minOdomDistance = 0.01; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 1; // [num]
