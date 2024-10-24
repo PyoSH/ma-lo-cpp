@@ -1,8 +1,8 @@
 #include "map_RT.h"
 
 map_rt::map_rt() {
-    mapWidth = 2000;
-    mapHeight = 2000;
+    mapWidth = 200;
+    mapHeight = 200;
     mapResolution = 0.05; //  meter per pixel
     mapCenterX= 0;
     mapCenterY= 0;
@@ -38,13 +38,11 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
         is1stPose = false;
     }
 
+    expandMapIfNeeded(pose);
+
     int poseX_px, poseY_px;
-    // poseX_px = static_cast<int>((pose(0,3) - mapCenterX + ((mapWidth * mapResolution)/2))/mapResolution);
-    // poseY_px = static_cast<int>((pose(1,3) - mapCenterY + ((mapHeight * mapResolution)/2))/mapResolution);
     poseX_px = static_cast<int>((pose(0,3) - mapCenterX) / mapResolution + (mapWidth / 2));
     poseY_px = static_cast<int>((pose(1,3) - mapCenterY) / mapResolution + (mapHeight / 2));
-    // poseZ = static_cast<int>((pose(2,3) - mapCenterZ + ((mapDepth * mapResolution)/2))/mapResolution);
-    // std::cout << "origin " << pose(0,3) << " "<< pose(1,3) <<" || " <<poseX_px << " " << poseY_px << std::endl;
 
     cv::Mat showMap;
     cv::cvtColor(gridMap, showMap, cv::COLOR_GRAY2RGB);
@@ -57,15 +55,12 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
     for(int i=0; i<pcTransformed.cols(); i++) {
         int scanX_px;
         int scanY_px;
-        // scanX_px = static_cast<int>((pcTransformed(0,i) - mapCenterX + ((mapWidth * mapResolution)/2))/mapResolution);
-        // scanY_px = static_cast<int>((pcTransformed(1,i) - mapCenterY + ((mapHeight * mapResolution)/2))/mapResolution);
         scanX_px = static_cast<int>((pcTransformed(0,i) - mapCenterX) / mapResolution + (mapWidth / 2));
         scanY_px = static_cast<int>((pcTransformed(1,i) - mapCenterY) / mapResolution + (mapHeight / 2));
 
         if(0 <= scanX_px && scanX_px < gridMap.cols && 0 <= scanY_px && scanY_px < gridMap.rows) {
             cv::circle(showMap, cv::Point(scanX_px, scanY_px), 1, cv::Scalar(0, 255, 255), -1);
             cv::LineIterator it(gridMap, cv::Point(poseX_px, poseY_px), cv::Point(scanX_px, scanY_px), 8, cv::LINE_AA);
-            // std::cout << "pc cnt:"<< pcTransformed.cols() << "|| it cnt:" << it.count << std::endl;
             for(int j=0; j<it.count-1; j++) {
                 gridMap.at<float>(it.pos()) = gridMap.at<float>(it.pos()) + occuGridDecrease;
                 it++;
@@ -142,4 +137,55 @@ void map_rt::convertAndPublishMap(const cv::Mat& image, const double t) {
     // 5. ROS 토픽으로 발행
     static ros::Publisher pub_map = ros::NodeHandle().advertise<nav_msgs::OccupancyGrid>("/map", 1);
     pub_map.publish(map_msg);
+}
+
+void map_rt::expandMapIfNeeded(Eigen::Matrix4f pose) {
+    // 로봇의 현재 위치 계산 (맵 좌표계 기준)
+    int poseX_px = static_cast<int>((pose(0,3) - mapCenterX) / mapResolution + (mapWidth / 2)); // [px]
+    int poseY_px = static_cast<int>((pose(1,3) - mapCenterY) / mapResolution + (mapHeight / 2));// [px]
+
+    // 로봇이 맵 경계를 벗어나는지 확인
+    int margin = 100; // 확장 전에 허용하는 여유 픽셀
+    bool expand = false;
+    int newWidth = mapWidth;    // [px]
+    int newHeight = mapHeight;  // [px]
+    int offsetX = 0;
+    int offsetY = 0;
+
+    if (poseX_px < margin) {
+        newWidth += mapWidth / 2; // 왼쪽으로 확장
+        offsetX = mapWidth / 2;
+        expand = true;
+    }
+    if (poseX_px > mapWidth - margin) {
+        newWidth += mapWidth / 2; // 오른쪽으로 확장
+        expand = true;
+    }
+    if (poseY_px < margin) {
+        newHeight += mapHeight / 2; // 위쪽으로 확장
+        offsetY = mapHeight / 2;
+        expand = true;
+    }
+    if (poseY_px > mapHeight - margin) {
+        newHeight += mapHeight / 2; // 아래쪽으로 확장
+        expand = true;
+    }
+
+    // 확장이 필요한 경우, 새로운 크기의 맵 생성 및 기존 맵 복사
+    if (expand) {
+        cv::Mat newMap = cv::Mat::ones(newHeight, newWidth, gridMap.type()) * 0.5; // 확장된 맵을 초기화 (0.5는 미확정 영역)
+        cv::Rect roi(offsetX, offsetY, gridMap.cols, gridMap.rows);
+        gridMap.copyTo(newMap(roi));
+
+        // 새 맵 크기와 오프셋 적용
+        mapWidth = newWidth;    // [px]
+        mapHeight = newHeight;  // [px]
+        gridMap = newMap;
+
+        // 맵 중심 업데이트 (오프셋에 따라)
+        mapCenterX -= offsetX * mapResolution; // [m]
+        mapCenterY -= offsetY * mapResolution; // [m]
+
+        std::cout << "Map expanded to new size: " << mapWidth << "x" << mapHeight << std::endl;
+    }
 }

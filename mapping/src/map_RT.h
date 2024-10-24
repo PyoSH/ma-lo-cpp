@@ -56,6 +56,7 @@ public:
     ~map_rt();
     void updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2);
     void convertAndPublishMap(const cv::Mat& image, const double t);
+    void expandMapIfNeeded(Eigen::Matrix4f pose);
 };
 
 #endif //MAP_RT_H
