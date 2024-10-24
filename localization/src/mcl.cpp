@@ -41,7 +41,7 @@ mcl::mcl(){
     likelihoodField = createLikelihoodField(gridMap_show, sigma_hit);
 
     numOfParticle = 2000; // 2500
-    minOdomDistance = 0.05; //[m]
+    minOdomDistance = 0.01; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 5; // [num]
     odomCovariance[0] = 0.02; // Rotation to Rotation
@@ -205,8 +205,15 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
         }
     }
 
-    for(int i=0; i<particles.size(); ++i)
-        particles.at(i).score = particles.at(i).score/scoreSum; //normalize the score
+    // 가중치의 합이 너무 작을 때 정규화
+    if(scoreSum > 0){
+        for(int i=0; i<particles.size(); ++i)
+            particles.at(i).score = particles.at(i).score/scoreSum; //normalize the score
+    }else{
+        for(int i=0; i<particles.size(); ++i)
+            particles.at(i).score = 1.0 / particles.size(); //normalize the score
+    }
+    
 }
 
 void mcl::resampling(){
@@ -215,9 +222,10 @@ void mcl::resampling(){
     std::vector<double> particleScores;
     std::vector<particle> particleSampled;
     double scoreBaseline = 0; 
-    
+    double min_weight = 1e-5;
     for(int i=0; i<particles.size(); ++i){
-        scoreBaseline += particles.at(i).score;
+        // scoreBaseline += particles.at(i).score;
+        scoreBaseline += std::max(particles.at(i).score, min_weight);
         particleScores.emplace_back(scoreBaseline);
     }
 
@@ -292,7 +300,8 @@ cv::Mat mcl::createLikelihoodField(const cv::Mat& obstacleMap, double sigma_hit)
 double mcl::calculateScanLikelihood(const Eigen::Matrix4Xf scan, const Eigen::Matrix4f pose){
     Eigen::Matrix4Xf transScan = pose * tf_pc2robot * scan; // [m]
 
-    float q = 1.0; 
+    // float q = 1.0; 
+    float q_log = 0.0; 
 
     for(int i=0; i<transScan.cols(); ++i){
         int ptX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + (likelihoodField.cols / 2.0)); // [px]
@@ -302,13 +311,16 @@ double mcl::calculateScanLikelihood(const Eigen::Matrix4Xf scan, const Eigen::Ma
         if (isRoughlyInside){
         // if (tool::isInside(mapCorners, ptX_px, ptY_px, cornerXmin, cornerYmin, cornerXmax, cornerYmax)){
             float likelihood = likelihoodField.at<float>(ptY_px, ptX_px);
-            q = q * likelihood;
+            // q = q * likelihood;
+            q_log = q_log + log(likelihood);
         }else{
-            q = q * 0.01;
+            // q = q * 0.01;
+            q_log = q_log + log(0.01);
         }
     }
 
-    return q;
+    // return q;
+    return exp(q_log);
 }
 
 void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2){
