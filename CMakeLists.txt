@@ -28,7 +28,8 @@ find_package(pcl_ros)
 
 set(tool_source
         tools/tool.cpp
-        tools/tool.h)
+        tools/tool.h
+        tools/nanoflann.hpp)
 
 set(mcl_source
         localization/src/mcl.cpp

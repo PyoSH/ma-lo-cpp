@@ -36,10 +36,10 @@ mcl::mcl(){
     }
     std::cout<< "[px] X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
 
-    numOfParticle = 200; // 2500
+    numOfParticle = 1000; // 2500
     minOdomDistance = 0.01; //[m]
     minOdomAngle = 5; // [deg]
-    repropagateCountNeeded = 1; // [num]
+    repropagateCountNeeded = 5; // [num]
     odomCovariance[0] = 0.02; // Rotation to Rotation
     odomCovariance[1] = 0.02; // translation to Rotation
     odomCovariance[2] = 0.02; // translation to translation
@@ -91,15 +91,16 @@ mcl::particle mcl::createRandomParticle(){
         randomY = y_pos(gen); // [m]
         randomTheta = theta_pos(gen); // [deg]
 
-        px_randomX = (int)((randomX - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
-        px_randomY = (int)((randomY - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
+        px_randomX = static_cast<int>((randomX - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
+        px_randomY = static_cast<int>((randomY - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
     }
-    while(!tool::isInside(mapCorners, (double)(px_randomX), (double)(px_randomY))); // [px]
+    while(!tool::isInside(mapCorners, (double)(px_randomX), (double)(px_randomY),
+                        (double)px_Xmin, (double)px_Ymin, (double)px_Xmax, (double)px_Ymax)); // [px]
     std::cout << "createRandom- " << px_randomX << " | "<< px_randomY << std::endl;
     
     Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
-    // retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, randomTheta); // [m]
-    retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, initPose(5)); // [m]
+    retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, randomTheta); // [m]
+    // retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, initPose(5)); // [m]
     retval.score = 1/(double)numOfParticle;
 
     return retval;
@@ -154,21 +155,32 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
     for(int i=0; i<particles.size(); ++i){
         std::normal_distribution<double> gaussian_distribution(0,1);
 
-        delta_trans = delta_trans - gaussian_distribution(gen) * trans_noise_coeff; // 책에서는 뺀다
-        delta_rot1 = delta_rot1 - gaussian_distribution(gen) * rot1_noise_coeff; // 책에서는 뺀다
-        delta_rot2 = delta_rot2 - gaussian_distribution(gen) * rot2_noise_coeff; // 책에서는 뺀다
+        delta_trans = delta_trans + gaussian_distribution(gen) * trans_noise_coeff; // 책에서는 뺀다
+        delta_rot1 = delta_rot1 + gaussian_distribution(gen) * rot1_noise_coeff; // 책에서는 뺀다
+        delta_rot2 = delta_rot2 + gaussian_distribution(gen) * rot2_noise_coeff; // 책에서는 뺀다
 
-        double x = delta_trans * cos(delta_rot1) + gaussian_distribution(gen) * odomCovariance[4]; 
-        double y = delta_trans * sin(delta_rot1) + gaussian_distribution(gen) * odomCovariance[5]; 
+        double x = delta_trans * cos(delta_rot1) + gaussian_distribution(gen) * odomCovariance[4]; // [m]
+        double y = delta_trans * sin(delta_rot1) + gaussian_distribution(gen) * odomCovariance[5]; // [m]
         double theta = delta_rot1 + delta_rot2 + (gaussian_distribution(gen) * odomCovariance[0]*(M_PI/180.0)); // rad 값으로 더하기 위함
+        // double x = delta_trans * cos(delta_rot1) ; // [m]
+        // double y = delta_trans * sin(delta_rot1) ; // [m]
+        // double theta = delta_rot1 + delta_rot2 ; // rad 값으로 더하기 위함
 
         Eigen::Matrix4f diff_odom_w_noise = tool::xyzrpy2eigen(x, y, 0, 0, 0, theta);
         Eigen::Matrix4f pose_t_plus_1 = particles.at(i).pose * diff_odom_w_noise;
+        // motion model with map
+
+        int px_X = static_cast<int>((pose_t_plus_1(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
+        int px_Y = static_cast<int>((pose_t_plus_1(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
+        if(tool::isInside(mapCorners, px_X, px_Y, cornerXmin, cornerYmin, cornerXmax, cornerYmax)){
+            particles.at(i).pose = pose_t_plus_1;
+        }else{
+            particles.at(i).pose = createRandomParticle().pose; // 혹은 근처이면서 맵 내부인 위치 만들기
+            particles.at(i).score = 1/(double)particles.size(); // 혹은 근처이면서 맵 내부인 위치 만들기
+        }
 
         scoreSum = scoreSum + particles.at(i).score;
-        particles.at(i).pose = pose_t_plus_1;
     }
-
     for(int i=0; i<particles.size(); ++i){
         particles.at(i).score = particles.at(i).score/scoreSum; // normalize the score
     }
@@ -181,20 +193,16 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
     float scoreSum = 0;
 
     for(int i=0; i<particles.size(); ++i){
-        // particle currParticle = particles.at(i);
-        // double px_particleX = (int)((currParticle.pose(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
-        // double px_particleY = (int)((currParticle.pose(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
-        // if(!tool::isInside(mapCorners, px_particleX, px_particleY)){
-        //     particles.at(i).pose = createRandomParticle().pose;
-        // }
-
-        Eigen::Matrix4Xf transScan = particles.at(i).pose * tf_pc2robot * scan;
+        
+        Eigen::Matrix4Xf transScan = particles.at(i).pose * tf_pc2robot * scan; // [m]
         float calcedWeight = 0;
         for(int j=0; j<transScan.cols(); ++j){
-            int ptX_px = static_cast<int>((transScan(0,j) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
-            int ptY_px = static_cast<int>((transScan(1,j) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
+            int ptX_px = static_cast<int>((transScan(0,j) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
+            int ptY_px = static_cast<int>((transScan(1,j) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
             
-            if(gridMap_use.cols <= ptX_px || ptX_px < 0 || gridMap_use.rows <= ptY_px || ptY_px < 0 || !tool::isInside(mapCorners, ptX_px, ptY_px)) continue;
+            bool isRoughlyInside = (cornerXmin < ptX_px && ptX_px < cornerXmax) && (cornerYmin < ptY_px && ptY_px < cornerYmax);
+
+            if(gridMap_use.cols <= ptX_px || ptX_px < 0 || gridMap_use.rows <= ptY_px || ptY_px < 0 || !isRoughlyInside) continue;
             else{
                 double img_val = gridMap_use.at<uchar>(ptX_px, ptY_px)/(double)255; // calc the score
                 calcedWeight += img_val; // sum up the score
@@ -296,7 +304,7 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
     float diffDistance = sqrt(pow(diffxyzrpy(0), 2) + pow(diffxyzrpy(1), 2)); //[m]
     float diffAngle = fabs(diffxyzrpy(5) * 180.0/3.141592); // [deg]
     
-    if(diffDistance > minOdomDistance || diffAngle > minOdomAngle){
+    // if(diffDistance > minOdomDistance || diffAngle > minOdomAngle){
         prediction(diffOdom); 
         weightning(scan);
 
@@ -308,5 +316,5 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
 
         m_sync_count = m_sync_count +1;
         odomBefore = pose;
-    }
+    // }
 }

@@ -166,7 +166,13 @@ Eigen::Matrix3f get_rotation_matrix(float roll, float pitch, float yaw) {
 * 지도 안에 있는지르 확인하기 위한 코드. 
 * inside polygon test : Ray-casting 알고리즘
 */
-bool isInside(const std::vector<cv::Point> points,double x, double y){
+bool isInside(const std::vector<cv::Point> points,double x, double y, 
+  double minX, double minY, double maxX, double maxY){
+  // 점이 Bounding Box 안에 있는지 먼저 검사
+  if (x < minX || x > maxX || y < minY || y > maxY) {
+      return false;
+  }
+  
   bool isIn = false;
   for(int i=0; i<points.size(); ++i){
     int j = (i + points.size()-1) % points.size();
@@ -175,7 +181,7 @@ bool isInside(const std::vector<cv::Point> points,double x, double y){
       isIn = !isIn;
     }   
   }
-  std::cout << "[px] isInside: " << x << " | " << y << " is " <<isIn << std::endl;
+  // std::cout << "[px] isInside: " << x << " | " << y << " is " <<isIn << std::endl;
   return isIn;
 }
 
@@ -315,6 +321,23 @@ void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud
   extract.setIndices(inliers);
   extract.setNegative(true);  
   extract.filter(*output_cloud);
+}
+
+cv::Point findNearestNeighborKDTree(const std::vector<cv::Point>& polygonPoints, const cv::Point& scanPoint) {
+  tool::PointCloud cloud;
+  cloud.points = polygonPoints;
+  tool::KDTree tree(2, cloud, nanoflann::KDTreeSingleIndexAdaptorParams(10));
+  tree.buildIndex();
+
+  float queryPoint[2] = {static_cast<float>(scanPoint.x), static_cast<float>(scanPoint.y)};
+  size_t nearestIndex;
+  float outDistSqr;
+
+  nanoflann::KNNResultSet<float> resultSet(1);
+  resultSet.init(&nearestIndex, &outDistSqr);
+  tree.findNeighbors(resultSet, queryPoint, nanoflann::SearchParameters());
+
+  return cloud.points[nearestIndex];
 }
 
 }
