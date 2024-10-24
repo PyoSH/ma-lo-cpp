@@ -3,19 +3,30 @@
 namespace tool
 {
 
-cv::Mat cvMaptoMCLMap(cv::Mat mat)
-{
-  for(int i=0;i<mat.cols;i++)
-  {
-    for(int j=0;j<mat.rows;j++)
-    {
-      unsigned char val = mat.at<unsigned char>(j,i);
-      if(val>100 && val<150) mat.at<unsigned char>(j,i)=255;
-      // else if(val<128) mat.at<unsigned char>(j,i)=255-bool isInMap();val;
-      else if(val>128) mat.at<unsigned char>(j,i)=255-val;
-    }
+cv::Mat cvMaptoMCLMap(const cv::Mat& inputImage, int dilation_size) {
+  // 입력 이미지를 복제하고 타입 변환
+  cv::Mat img_save = inputImage.clone();
+  img_save.convertTo(img_save, CV_8UC3, 255.0);
+
+  // 픽셀 값을 반전 (흑백 반전)
+  for (int i = 0; i < img_save.rows; i++) {
+      for (int j = 0; j < img_save.cols; j++) {
+          // Get pixel value
+          uchar pixel = img_save.at<uchar>(i, j);
+          img_save.at<uchar>(i, j) = abs(255 - pixel);  // Black to White
+      }
   }
-  return mat;
+
+  // 팽창 및 침식에 사용할 커널 생성
+  cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT,
+                          cv::Size(2 * dilation_size + 1, 2 * dilation_size + 1),
+                          cv::Point(dilation_size, dilation_size));
+  
+  // 팽창 및 침식 적용
+  cv::dilate(img_save, img_save, element);
+  cv::erode(img_save, img_save, cv::Mat());
+
+  return img_save;
 }
 
 

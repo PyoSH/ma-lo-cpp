@@ -32,7 +32,7 @@ class mcl
 {
     struct particle{
         Eigen::Matrix4f pose;
-        float score;
+        double score;
         Eigen::Matrix4Xf scan; // Only for maximum probability particle.
     };
 
@@ -54,7 +54,7 @@ private:
     
     cv::Mat gridMap_show; // Gridmap for showing
     cv::Mat gridMap_use; // Gridmap for use (gaussian-blurred)
-    // cv::Mat likelihoodField;
+    cv::Mat likelihoodField;
     
     std::vector<cv::Point> mapCorners; // 1D array to check particle is inside contour of map
     int cornerXmin;
@@ -80,9 +80,11 @@ private:
     mcl::particle createRandomParticle();
     void initializeParticles();
     void prediction(Eigen::Matrix4f diffPose);
-    void weightning(Eigen::Matrix4Xf laser);
+    void weightning(Eigen::Matrix4Xf scan);
     void resampling();
     void showInMap();
+    cv::Mat createLikelihoodField(const cv::Mat& obstacleMap, double sigma_hit);
+    double calculateScanLikelihood(const Eigen::Matrix4Xf scan, const Eigen::Matrix4f pose);
 
 public:
   mcl();

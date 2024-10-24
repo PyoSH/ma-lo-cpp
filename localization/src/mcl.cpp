@@ -4,8 +4,9 @@ mcl::mcl(){
     m_sync_count = 0;
     gen.seed(rd());
 
-    gridMap_show = cv::imread("/home/pyo/erodedMap.png", cv::IMREAD_GRAYSCALE);
-    gridMap_use = cv::imread("/home/pyo/erodedMap.png", cv::IMREAD_GRAYSCALE);
+    gridMap_show = cv::imread("/home/pyo/map_door.png", cv::IMREAD_GRAYSCALE);
+
+    gridMap_use = tool::cvMaptoMCLMap(gridMap_show.clone(), 2);
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(gridMap_use, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
@@ -36,8 +37,11 @@ mcl::mcl(){
     }
     std::cout<< "[px] X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
 
-    numOfParticle = 1000; // 2500
-    minOdomDistance = 0.01; //[m]
+    double sigma_hit = 1.0;
+    likelihoodField = createLikelihoodField(gridMap_show, sigma_hit);
+
+    numOfParticle = 2000; // 2500
+    minOdomDistance = 0.05; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 5; // [num]
     odomCovariance[0] = 0.02; // Rotation to Rotation
@@ -162,14 +166,11 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
         double x = delta_trans * cos(delta_rot1) + gaussian_distribution(gen) * odomCovariance[4]; // [m]
         double y = delta_trans * sin(delta_rot1) + gaussian_distribution(gen) * odomCovariance[5]; // [m]
         double theta = delta_rot1 + delta_rot2 + (gaussian_distribution(gen) * odomCovariance[0]*(M_PI/180.0)); // rad 값으로 더하기 위함
-        // double x = delta_trans * cos(delta_rot1) ; // [m]
-        // double y = delta_trans * sin(delta_rot1) ; // [m]
-        // double theta = delta_rot1 + delta_rot2 ; // rad 값으로 더하기 위함
 
         Eigen::Matrix4f diff_odom_w_noise = tool::xyzrpy2eigen(x, y, 0, 0, 0, theta);
         Eigen::Matrix4f pose_t_plus_1 = particles.at(i).pose * diff_odom_w_noise;
+        
         // motion model with map
-
         int px_X = static_cast<int>((pose_t_plus_1(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
         int px_Y = static_cast<int>((pose_t_plus_1(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
         if(tool::isInside(mapCorners, px_X, px_Y, cornerXmin, cornerYmin, cornerXmax, cornerYmax)){
@@ -189,32 +190,18 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
 }
 
 void mcl::weightning(Eigen::Matrix4Xf scan){
-    float maxScore = 0;
-    float scoreSum = 0;
+    double maxScore = 0;
+    double scoreSum = 0;
 
     for(int i=0; i<particles.size(); ++i){
-        
-        Eigen::Matrix4Xf transScan = particles.at(i).pose * tf_pc2robot * scan; // [m]
-        float calcedWeight = 0;
-        for(int j=0; j<transScan.cols(); ++j){
-            int ptX_px = static_cast<int>((transScan(0,j) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
-            int ptY_px = static_cast<int>((transScan(1,j) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
-            
-            bool isRoughlyInside = (cornerXmin < ptX_px && ptX_px < cornerXmax) && (cornerYmin < ptY_px && ptY_px < cornerYmax);
+        double calcedWeight = calculateScanLikelihood(scan, particles.at(i).pose);
+        particles.at(i).score = calcedWeight;
+        scoreSum += calcedWeight;
 
-            if(gridMap_use.cols <= ptX_px || ptX_px < 0 || gridMap_use.rows <= ptY_px || ptY_px < 0 || !isRoughlyInside) continue;
-            else{
-                double img_val = gridMap_use.at<uchar>(ptX_px, ptY_px)/(double)255; // calc the score
-                calcedWeight += img_val; // sum up the score
-            }
-        }
-        particles.at(i).score = particles.at(i).score + (calcedWeight / transScan.cols()); // adding score to particles
-        scoreSum += particles.at(i).score;
-    
-        if(maxScore < particles.at(i).score){
+        if(maxScore < calcedWeight){
             maxProbParticle = particles.at(i);
             maxProbParticle.scan = scan;
-            maxScore = particles.at(i).score;
+            maxScore = calcedWeight;
         }
     }
 
@@ -250,14 +237,16 @@ void mcl::resampling(){
 void mcl::showInMap(){
     cv::Mat showMap;
     cv::cvtColor(gridMap_show, showMap, cv::COLOR_GRAY2BGR);
+    // cv::Mat showMap = likelihoodField.clone();
+    // cv::cvtColor(showMap, showMap, cv::COLOR_GRAY2BGR);
 
     // draw particles in blue dots
     for(int i=0; i<numOfParticle; ++i){
-        int poseX_px = static_cast<int>((particles.at(i).pose(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
-        int poseY_px = static_cast<int>((particles.at(i).pose(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
+        int poseX_px = static_cast<int>((particles.at(i).pose(0,3) - mapCenterX) / imageResolution + (showMap.cols / 2.0)); // [px]
+        int poseY_px = static_cast<int>((particles.at(i).pose(1,3) - mapCenterY) / imageResolution + (showMap.rows / 2.0)); // [px]
 
         // std::cout << "draw- " << poseX_px << " | "<< poseY_px << std::endl;
-        cv::circle(showMap, cv::Point(poseX_px, poseY_px), 5, cv::Scalar(255,0,0), -1); // 1
+        cv::circle(showMap, cv::Point(poseX_px, poseY_px), 1, cv::Scalar(255,0,0), -1); // 1
     }
 
     if(maxProbParticle.score > 0){
@@ -268,15 +257,15 @@ void mcl::showInMap(){
             x_all = x_all + particles.at(i).pose(0,3) * particles.at(i).score;
             y_all = y_all + particles.at(i).pose(1,3) * particles.at(i).score;
         }
-        int poseX_px_all = static_cast<int>((x_all - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
-        int poseY_px_all = static_cast<int>((y_all - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
+        int poseX_px_all = static_cast<int>((x_all - mapCenterX) / imageResolution + (showMap.cols / 2.0));
+        int poseY_px_all = static_cast<int>((y_all - mapCenterY) / imageResolution + (showMap.rows / 2.0));
 
         cv::circle(showMap, cv::Point(poseX_px_all, poseY_px_all), 2, cv::Scalar(0,0,255), -1);
         Eigen::Matrix4Xf transScan = maxProbParticle.pose * tf_pc2robot * maxProbParticle.scan;
 
         for(int i=0; i<transScan.cols(); ++i){
-            int scanX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0));
-            int scanY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0));
+            int scanX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + (showMap.cols / 2.0));
+            int scanY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + (showMap.rows / 2.0));
 
             cv::circle(showMap, cv::Point(scanX_px, scanY_px), 1, cv::Scalar(0,255,255), -1);
         }
@@ -284,6 +273,42 @@ void mcl::showInMap(){
     
     cv::imshow("MCL2", showMap);
     cv::waitKey(1);
+}
+
+cv::Mat mcl::createLikelihoodField(const cv::Mat& obstacleMap, double sigma_hit){
+    cv::Mat distanceMap;
+    cv::distanceTransform(obstacleMap, distanceMap, cv::DIST_L2, 5);
+
+    cv::Mat likelihoodField(distanceMap.size(), CV_32F);
+    for(int i = 0; i<distanceMap.rows; ++i){
+        for(int j = 0; j<distanceMap.cols; ++j){
+            float dist = distanceMap.at<float>(i,j);
+            likelihoodField.at<float>(i,j) = exp(-0.5 * (dist*dist) / (sigma_hit *sigma_hit));
+        }
+    }
+    return likelihoodField;
+}
+
+double mcl::calculateScanLikelihood(const Eigen::Matrix4Xf scan, const Eigen::Matrix4f pose){
+    Eigen::Matrix4Xf transScan = pose * tf_pc2robot * scan; // [m]
+
+    float q = 1.0; 
+
+    for(int i=0; i<transScan.cols(); ++i){
+        int ptX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + (likelihoodField.cols / 2.0)); // [px]
+        int ptY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + (likelihoodField.rows / 2.0)); // [px]
+        
+        bool isRoughlyInside = (cornerXmin < ptX_px && ptX_px < cornerXmax) && (cornerYmin < ptY_px && ptY_px < cornerYmax);
+        if (isRoughlyInside){
+        // if (tool::isInside(mapCorners, ptX_px, ptY_px, cornerXmin, cornerYmin, cornerXmax, cornerYmax)){
+            float likelihood = likelihoodField.at<float>(ptY_px, ptX_px);
+            q = q * likelihood;
+        }else{
+            q = q * 0.01;
+        }
+    }
+
+    return q;
 }
 
 void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2){
@@ -304,7 +329,7 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
     float diffDistance = sqrt(pow(diffxyzrpy(0), 2) + pow(diffxyzrpy(1), 2)); //[m]
     float diffAngle = fabs(diffxyzrpy(5) * 180.0/3.141592); // [deg]
     
-    // if(diffDistance > minOdomDistance || diffAngle > minOdomAngle){
+    if(diffDistance > minOdomDistance || diffAngle > minOdomAngle){
         prediction(diffOdom); 
         weightning(scan);
 
@@ -316,5 +341,5 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
 
         m_sync_count = m_sync_count +1;
         odomBefore = pose;
-    // }
+    }
 }

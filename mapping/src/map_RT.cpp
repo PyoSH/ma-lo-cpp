@@ -81,31 +81,12 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
     // cv::imshow("Map", gridMap);
     cv::Mat image_new = gridMap.clone();
     image_new.convertTo(image_new, CV_8UC3, 255.0);
-    cv::imwrite("map.png", image_new);
 
-    cv::Mat img_save = image_new.clone();
-    img_save.convertTo(img_save, CV_8UC3, 255.0);
-    for (int i = 0; i < img_save.rows; i++) {
-        for (int j = 0; j < img_save.cols; j++) {
-            // Get pixel value
-            char pixel = img_save.at<uchar>(i, j);
-            img_save.at<uchar>(i, j) = abs(255 - pixel);  // Black to White
-        }
-    }    
-
-    // // cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
-    // // cv::erode(img_save, img_save, kernel);
-    int dilation_size = 2;  // This controls the level of "expansion" of white points
-    cv::Mat element = cv::getStructuringElement(cv::MORPH_RECT,
-                                cv::Size(2 * dilation_size + 1, 2 * dilation_size + 1),
-                                cv::Point(dilation_size, dilation_size));
-    // cv::morphologyEx(image_new.clone(), img_save, cv::MORPH_OPEN, cv::Mat());
-    cv::Mat dilated_image;
-    cv::dilate(img_save, img_save, element);
-    cv::erode(img_save, img_save, cv::Mat());
-
+    cv::Mat img_save = tool::cvMaptoMCLMap(image_new.clone(), 2);
     cv::imshow("dilate", img_save);
-    cv::imwrite("/home/pyo/erodedMap.png", img_save);
+    
+    cv::imwrite("/home/pyo/map_.png", image_new);
+    cv::imwrite("/home/pyo/erodedMap_.png", img_save);
 
     double avg_time = (t1+t2)/2.0;
     // 1. PUB them into Image
