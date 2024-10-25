@@ -34,14 +34,19 @@ class map_rt {
 private:
     bool is1stPose = true;
 
-    float mapWidth;
-    float mapHeight;
+    float initMapWidth;
+    float initMapHeight;
+    float currMapWidth;
+    float currMapHeight;
     float mapResolution; // meter per pixel
     float mapCenterX;
     float mapCenterY;
     float mapCenterZ;
     float occuGridIncrease;
     float occuGridDecrease;
+
+    float offsetX;
+    float offsetY;
 
     float roll_rad;
     float pitch_rad;

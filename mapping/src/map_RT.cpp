@@ -1,8 +1,8 @@
 #include "map_RT.h"
 
 map_rt::map_rt() {
-    mapWidth = 200;
-    mapHeight = 200;
+    initMapWidth = 200;
+    initMapHeight = 200;
     mapResolution = 0.05; //  meter per pixel
     mapCenterX= 0;
     mapCenterY= 0;
@@ -10,7 +10,12 @@ map_rt::map_rt() {
     occuGridIncrease = -0.4; // default : 0.5 -> 0.02
     occuGridDecrease = 0.2; // default : 0.5
 
-    gridMap = cv::Mat(mapWidth, mapHeight, CV_32FC1, cv::Scalar(0.5));
+    gridMap = cv::Mat(initMapWidth, initMapHeight, CV_32FC1, cv::Scalar(0.5));
+
+    currMapWidth = initMapWidth;
+    currMapHeight = initMapHeight;
+    offsetX = initMapWidth/2.0;
+    offsetY = initMapHeight/2.0;
 
     roll_rad = -90 * M_PI / 180.0;
     pitch_rad = 0;
@@ -41,8 +46,8 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
     expandMapIfNeeded(pose);
 
     int poseX_px, poseY_px;
-    poseX_px = static_cast<int>((pose(0,3) - mapCenterX) / mapResolution + (mapWidth / 2));
-    poseY_px = static_cast<int>((pose(1,3) - mapCenterY) / mapResolution + (mapHeight / 2));
+    poseX_px = static_cast<int>((pose(0,3) - mapCenterX) / mapResolution + offsetX);
+    poseY_px = static_cast<int>((pose(1,3) - mapCenterY) / mapResolution + offsetY);
 
     cv::Mat showMap;
     cv::cvtColor(gridMap, showMap, cv::COLOR_GRAY2RGB);
@@ -55,8 +60,8 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
     for(int i=0; i<pcTransformed.cols(); i++) {
         int scanX_px;
         int scanY_px;
-        scanX_px = static_cast<int>((pcTransformed(0,i) - mapCenterX) / mapResolution + (mapWidth / 2));
-        scanY_px = static_cast<int>((pcTransformed(1,i) - mapCenterY) / mapResolution + (mapHeight / 2));
+        scanX_px = static_cast<int>((pcTransformed(0,i) - mapCenterX) / mapResolution + offsetX);
+        scanY_px = static_cast<int>((pcTransformed(1,i) - mapCenterY) / mapResolution + offsetY);
 
         if(0 <= scanX_px && scanX_px < gridMap.cols && 0 <= scanY_px && scanY_px < gridMap.rows) {
             cv::circle(showMap, cv::Point(scanX_px, scanY_px), 1, cv::Scalar(0, 255, 255), -1);
@@ -71,7 +76,7 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
     }
 
     std::string text1 = "Current points: " + std::to_string(pcTransformed.cols());
-    cv::putText(showMap, text1, cv::Point(10, mapHeight - 100), cv::FONT_HERSHEY_PLAIN, 2, cv::Scalar(255, 255, 255), 2);
+    cv::putText(showMap, text1, cv::Point(10, currMapHeight - 100), cv::FONT_HERSHEY_PLAIN, 2, cv::Scalar(255, 255, 255), 2);
     // cv::imshow("current Map", showMap);
     // cv::imshow("Map", gridMap);
     cv::Mat image_new = gridMap.clone();
@@ -110,8 +115,8 @@ void map_rt::convertAndPublishMap(const cv::Mat& image, const double t) {
     map_msg.info.height = image.rows;       // 맵의 높이 (그리드 셀 수)
     
     // 3. 원점 (맵의 좌표계에서의 원점)
-    map_msg.info.origin.position.x = mapCenterX - mapWidth*mapResolution/2;
-    map_msg.info.origin.position.y = mapCenterY - mapHeight*mapResolution/2;
+    map_msg.info.origin.position.x = mapCenterX - currMapWidth*mapResolution/2;
+    map_msg.info.origin.position.y = mapCenterY - currMapHeight*mapResolution/2;
     map_msg.info.origin.position.z = 0;
     map_msg.info.origin.orientation.w = 1.0;
 
@@ -141,51 +146,53 @@ void map_rt::convertAndPublishMap(const cv::Mat& image, const double t) {
 
 void map_rt::expandMapIfNeeded(Eigen::Matrix4f pose) {
     // 로봇의 현재 위치 계산 (맵 좌표계 기준)
-    int poseX_px = static_cast<int>((pose(0,3) - mapCenterX) / mapResolution + (mapWidth / 2)); // [px]
-    int poseY_px = static_cast<int>((pose(1,3) - mapCenterY) / mapResolution + (mapHeight / 2));// [px]
+    int poseX_px = static_cast<int>((pose(0,3) - mapCenterX) / mapResolution + offsetX); // [px]
+    int poseY_px = static_cast<int>((pose(1,3) - mapCenterY) / mapResolution + offsetY);// [px]
+    bool condition1(false), condition2(false), condition3(false), condition4(false);
+    cv::Rect roi;
 
-    // 로봇이 맵 경계를 벗어나는지 확인
-    int margin = 100; // 확장 전에 허용하는 여유 픽셀
-    bool expand = false;
-    int newWidth = mapWidth;    // [px]
-    int newHeight = mapHeight;  // [px]
-    int offsetX = 0;
-    int offsetY = 0;
+    bool expandNeeded = true;
+    int margin = 80;
+    // std::cout << "1" << std::endl;
 
-    if (poseX_px < margin) {
-        newWidth += mapWidth / 2; // 왼쪽으로 확장
-        offsetX = mapWidth / 2;
-        expand = true;
-    }
-    if (poseX_px > mapWidth - margin) {
-        newWidth += mapWidth / 2; // 오른쪽으로 확장
-        expand = true;
-    }
-    if (poseY_px < margin) {
-        newHeight += mapHeight / 2; // 위쪽으로 확장
-        offsetY = mapHeight / 2;
-        expand = true;
-    }
-    if (poseY_px > mapHeight - margin) {
-        newHeight += mapHeight / 2; // 아래쪽으로 확장
-        expand = true;
-    }
+    if (poseX_px > currMapWidth - margin) condition1 = true; // 오른쪽으로 확장
+    else if (poseY_px > currMapHeight - margin) condition2 = true; // 아래로 확장
+    else if (poseX_px < margin) condition3 = true; // 왼쪽으로 확장
+    else if (poseY_px < margin) condition4 = true; // 위로 확장
+    else expandNeeded = false;
 
-    // 확장이 필요한 경우, 새로운 크기의 맵 생성 및 기존 맵 복사
-    if (expand) {
-        cv::Mat newMap = cv::Mat::ones(newHeight, newWidth, gridMap.type()) * 0.5; // 확장된 맵을 초기화 (0.5는 미확정 영역)
-        cv::Rect roi(offsetX, offsetY, gridMap.cols, gridMap.rows);
+    // std::cout << "2 " << std::endl;
+    if(condition1){ // expand right side
+        roi = cv::Rect(0,0, currMapWidth, currMapHeight);
+        currMapWidth += initMapWidth;
+        
+    }else if(condition2){ // expand down side
+        roi = cv::Rect(0,0, currMapWidth, currMapHeight);
+        currMapHeight += initMapHeight;
+
+    }else if (condition3){ // expand left side
+        offsetX += initMapWidth;
+        roi = cv::Rect(gridMap.cols, 0, currMapWidth, currMapHeight);
+        currMapWidth += initMapWidth;
+        
+
+    }else if (condition4){ // expand up side
+        offsetY += initMapHeight;
+        roi = cv::Rect(0, gridMap.rows, currMapWidth, currMapHeight);
+        currMapHeight += initMapHeight;
+
+    }
+    // std::cout << "3 " << std::endl;
+
+    if(expandNeeded){
+        // std::cout << "expanded 1" << std::endl;
+        cv::Mat newMap = cv::Mat::ones(currMapHeight, currMapWidth, gridMap.type()) * 0.5;
+        std::cout << "expanded 2- currMapHeight " << currMapHeight <<"| currMapWidth "<< currMapWidth<< " " << roi<< std::endl;
         gridMap.copyTo(newMap(roi));
+        // std::cout << "expanded 3" << std::endl;
 
-        // 새 맵 크기와 오프셋 적용
-        mapWidth = newWidth;    // [px]
-        mapHeight = newHeight;  // [px]
         gridMap = newMap;
 
-        // 맵 중심 업데이트 (오프셋에 따라)
-        mapCenterX -= offsetX * mapResolution; // [m]
-        mapCenterY -= offsetY * mapResolution; // [m]
-
-        std::cout << "Map expanded to new size: " << mapWidth << "x" << mapHeight << std::endl;
-    }
+        std::cout << "Map expanded to new size: " << currMapWidth << "x" << currMapHeight << std::endl;
+    }    
 }
