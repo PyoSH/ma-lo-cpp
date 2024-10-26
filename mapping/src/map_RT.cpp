@@ -85,8 +85,8 @@ void map_rt::updateMap(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, d
     cv::Mat img_save = tool::cvMaptoMCLMap(image_new.clone(), 2);
     cv::imshow("dilate", img_save);
     
-    cv::imwrite("/home/pyo/map_.png", image_new);
-    cv::imwrite("/home/pyo/erodedMap_.png", img_save);
+    cv::imwrite("map_.png", image_new);
+    cv::imwrite("erodedMap_.png", img_save);
 
     double avg_time = (t1+t2)/2.0;
     // 1. PUB them into Image
@@ -149,8 +149,8 @@ void map_rt::expandMapIfNeeded(Eigen::Matrix4f pose) {
     int poseX_px = static_cast<int>((pose(0,3) - mapCenterX) / mapResolution + offsetX); // [px]
     int poseY_px = static_cast<int>((pose(1,3) - mapCenterY) / mapResolution + offsetY);// [px]
     bool condition1(false), condition2(false), condition3(false), condition4(false);
-    cv::Rect roi;
 
+    cv::Rect roi(0,0, currMapWidth, currMapHeight);;
     bool expandNeeded = true;
     int margin = 80;
     // std::cout << "1" << std::endl;
@@ -163,22 +163,20 @@ void map_rt::expandMapIfNeeded(Eigen::Matrix4f pose) {
 
     // std::cout << "2 " << std::endl;
     if(condition1){ // expand right side
-        roi = cv::Rect(0,0, currMapWidth, currMapHeight);
         currMapWidth += initMapWidth;
         
     }else if(condition2){ // expand down side
-        roi = cv::Rect(0,0, currMapWidth, currMapHeight);
         currMapHeight += initMapHeight;
 
     }else if (condition3){ // expand left side
         offsetX += initMapWidth;
-        roi = cv::Rect(gridMap.cols, 0, currMapWidth, currMapHeight);
+        roi.x = initMapWidth;
         currMapWidth += initMapWidth;
         
 
     }else if (condition4){ // expand up side
         offsetY += initMapHeight;
-        roi = cv::Rect(0, gridMap.rows, currMapWidth, currMapHeight);
+        roi.y = initMapHeight;
         currMapHeight += initMapHeight;
 
     }
