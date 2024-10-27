@@ -46,6 +46,9 @@ private:
     float mapCenterX;
     float mapCenterY;
     float mapCenterZ;
+    float pxCenterX;
+    float pxCenterY;
+
     
     float odomCovariance[6];
     int numOfParticle;

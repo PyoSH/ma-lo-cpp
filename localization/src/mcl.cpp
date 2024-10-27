@@ -4,7 +4,10 @@ mcl::mcl(){
     m_sync_count = 0;
     gen.seed(rd());
 
-    gridMap_show = cv::imread("/home/pyo/map_door.png", cv::IMREAD_GRAYSCALE);
+
+    gridMap_show = cv::imread("/home/kriso/map_simple.png", cv::IMREAD_GRAYSCALE);
+    pxCenterX = 200/2;
+    pxCenterY = gridMap_show.rows - 200/2;
 
     gridMap_use = tool::cvMaptoMCLMap(gridMap_show.clone(), 2);
     std::vector<std::vector<cv::Point>> contours;
@@ -40,7 +43,7 @@ mcl::mcl(){
     double sigma_hit = 1.0;
     likelihoodField = createLikelihoodField(gridMap_show, sigma_hit);
 
-    numOfParticle = 2000; // 2500
+    numOfParticle = 1000; // 2500
     minOdomDistance = 0.01; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 5; // [num]
@@ -82,10 +85,14 @@ mcl::particle mcl::createRandomParticle(){
     float px_Ymax = (cornerYmax + cornerYmin)/2.0 + ((cornerYmax - cornerYmin) /2.0); // [px]
     int px_randomX, px_randomY;
 
-    std::uniform_real_distribution<float> x_pos((px_Xmin - (gridMap_use.cols/2.0)) * imageResolution + mapCenterX, 
-                                        (px_Xmax - (gridMap_use.cols/2.0)) * imageResolution + mapCenterX); // [m]
-    std::uniform_real_distribution<float> y_pos((px_Ymin - (gridMap_use.rows/2.0)) * imageResolution + mapCenterY, 
-                                        (px_Ymax - (gridMap_use.rows/2.0)) * imageResolution + mapCenterY); // [m]
+    // std::uniform_real_distribution<float> x_pos((px_Xmin - (gridMap_use.cols/2.0)) * imageResolution + mapCenterX, 
+    //                                     (px_Xmax - (gridMap_use.cols/2.0)) * imageResolution + mapCenterX); // [m]
+    // std::uniform_real_distribution<float> y_pos((px_Ymin - (gridMap_use.rows/2.0)) * imageResolution + mapCenterY, 
+    //                                     (px_Ymax - (gridMap_use.rows/2.0)) * imageResolution + mapCenterY); // [m]
+    std::uniform_real_distribution<float> x_pos((px_Xmin - pxCenterX) * imageResolution + mapCenterX, 
+                                    (px_Xmax - pxCenterX) * imageResolution + mapCenterX); // [m]
+    std::uniform_real_distribution<float> y_pos((px_Ymin - pxCenterY) * imageResolution + mapCenterY, 
+                                        (px_Ymax - pxCenterY) * imageResolution + mapCenterY); // [m]
     std::uniform_real_distribution<float> theta_pos(-M_PI, M_PI); // -180~180 [deg]
 
     float randomX, randomY, randomTheta;
@@ -95,8 +102,10 @@ mcl::particle mcl::createRandomParticle(){
         randomY = y_pos(gen); // [m]
         randomTheta = theta_pos(gen); // [deg]
 
-        px_randomX = static_cast<int>((randomX - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
-        px_randomY = static_cast<int>((randomY - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
+        // px_randomX = static_cast<int>((randomX - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
+        // px_randomY = static_cast<int>((randomY - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
+        px_randomX = static_cast<int>((randomX - mapCenterX) / imageResolution + pxCenterX); // [px]
+        px_randomY = static_cast<int>((randomY - mapCenterY) / imageResolution + pxCenterY); // [px]
     }
     while(!tool::isInside(mapCorners, (double)(px_randomX), (double)(px_randomY),
                         (double)px_Xmin, (double)px_Ymin, (double)px_Xmax, (double)px_Ymax)); // [px]
@@ -104,7 +113,6 @@ mcl::particle mcl::createRandomParticle(){
     
     Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
     retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, randomTheta); // [m]
-    // retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, initPose(5)); // [m]
     retval.score = 1/(double)numOfParticle;
 
     return retval;
@@ -171,8 +179,10 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
         Eigen::Matrix4f pose_t_plus_1 = particles.at(i).pose * diff_odom_w_noise;
         
         // motion model with map
-        int px_X = static_cast<int>((pose_t_plus_1(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
-        int px_Y = static_cast<int>((pose_t_plus_1(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
+        // int px_X = static_cast<int>((pose_t_plus_1(0,3) - mapCenterX) / imageResolution + (gridMap_use.cols / 2.0)); // [px]
+        // int px_Y = static_cast<int>((pose_t_plus_1(1,3) - mapCenterY) / imageResolution + (gridMap_use.rows / 2.0)); // [px]
+        int px_X = static_cast<int>((pose_t_plus_1(0,3) - mapCenterX) / imageResolution + pxCenterX); // [px]
+        int px_Y = static_cast<int>((pose_t_plus_1(1,3) - mapCenterY) / imageResolution + pxCenterY); // [px]
         if(tool::isInside(mapCorners, px_X, px_Y, cornerXmin, cornerYmin, cornerXmax, cornerYmax)){
             particles.at(i).pose = pose_t_plus_1;
         }else{
@@ -245,13 +255,19 @@ void mcl::resampling(){
 void mcl::showInMap(){
     cv::Mat showMap;
     cv::cvtColor(gridMap_show, showMap, cv::COLOR_GRAY2BGR);
+
+    for(int i=0; i<mapCorners.size(); ++i){
+        cv::circle(showMap, cv::Point(mapCorners[i].x, mapCorners[i].y), 5, cv::Scalar(0,255,0), -1);
+    }
     // cv::Mat showMap = likelihoodField.clone();
     // cv::cvtColor(showMap, showMap, cv::COLOR_GRAY2BGR);
 
     // draw particles in blue dots
     for(int i=0; i<numOfParticle; ++i){
-        int poseX_px = static_cast<int>((particles.at(i).pose(0,3) - mapCenterX) / imageResolution + (showMap.cols / 2.0)); // [px]
-        int poseY_px = static_cast<int>((particles.at(i).pose(1,3) - mapCenterY) / imageResolution + (showMap.rows / 2.0)); // [px]
+        // int poseX_px = static_cast<int>((particles.at(i).pose(0,3) - mapCenterX) / imageResolution + (showMap.cols / 2.0)); // [px]
+        // int poseY_px = static_cast<int>((particles.at(i).pose(1,3) - mapCenterY) / imageResolution + (showMap.rows / 2.0)); // [px]
+        int poseX_px = static_cast<int>((particles.at(i).pose(0,3) - mapCenterX) / imageResolution + pxCenterX); // [px]
+        int poseY_px = static_cast<int>((particles.at(i).pose(1,3) - mapCenterY) / imageResolution + pxCenterY); // [px]
 
         // std::cout << "draw- " << poseX_px << " | "<< poseY_px << std::endl;
         cv::circle(showMap, cv::Point(poseX_px, poseY_px), 1, cv::Scalar(255,0,0), -1); // 1
@@ -265,21 +281,26 @@ void mcl::showInMap(){
             x_all = x_all + particles.at(i).pose(0,3) * particles.at(i).score;
             y_all = y_all + particles.at(i).pose(1,3) * particles.at(i).score;
         }
-        int poseX_px_all = static_cast<int>((x_all - mapCenterX) / imageResolution + (showMap.cols / 2.0));
-        int poseY_px_all = static_cast<int>((y_all - mapCenterY) / imageResolution + (showMap.rows / 2.0));
+        // int poseX_px_all = static_cast<int>((x_all - mapCenterX) / imageResolution + (showMap.cols / 2.0));
+        // int poseY_px_all = static_cast<int>((y_all - mapCenterY) / imageResolution + (showMap.rows / 2.0));
+        int poseX_px_all = static_cast<int>((x_all - mapCenterX) / imageResolution + pxCenterX);
+        int poseY_px_all = static_cast<int>((y_all - mapCenterY) / imageResolution + pxCenterY);
 
         cv::circle(showMap, cv::Point(poseX_px_all, poseY_px_all), 2, cv::Scalar(0,0,255), -1);
         Eigen::Matrix4Xf transScan = maxProbParticle.pose * tf_pc2robot * maxProbParticle.scan;
 
         for(int i=0; i<transScan.cols(); ++i){
-            int scanX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + (showMap.cols / 2.0));
-            int scanY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + (showMap.rows / 2.0));
+            // int scanX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + (showMap.cols / 2.0));
+            // int scanY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + (showMap.rows / 2.0));
+            int scanX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + pxCenterX);
+            int scanY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + pxCenterY);
 
             cv::circle(showMap, cv::Point(scanX_px, scanY_px), 1, cv::Scalar(0,255,255), -1);
         }
     }
     
     cv::imshow("MCL2", showMap);
+    // cv::imshow("LikelihoodField", likelihoodField.clone());
     cv::waitKey(1);
 }
 
@@ -304,8 +325,10 @@ double mcl::calculateScanLikelihood(const Eigen::Matrix4Xf scan, const Eigen::Ma
     float q_log = 0.0; 
 
     for(int i=0; i<transScan.cols(); ++i){
-        int ptX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + (likelihoodField.cols / 2.0)); // [px]
-        int ptY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + (likelihoodField.rows / 2.0)); // [px]
+        // int ptX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + (likelihoodField.cols / 2.0)); // [px]
+        // int ptY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + (likelihoodField.rows / 2.0)); // [px]
+        int ptX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + pxCenterX); // [px]
+        int ptY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + pxCenterY); // [px]
         
         bool isRoughlyInside = (cornerXmin < ptX_px && ptX_px < cornerXmax) && (cornerYmin < ptY_px && ptY_px < cornerYmax);
         if (isRoughlyInside){
