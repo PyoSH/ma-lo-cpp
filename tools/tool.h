@@ -21,23 +21,6 @@
 #include <nanoflann.hpp>
 namespace tool
 {
-  struct PointCloud {
-    std::vector<cv::Point> points;
-
-    // 포인트 개수 반환
-    inline size_t kdtree_get_point_count() const { return points.size(); }
-
-    // 인덱스로부터 x, y 좌표를 가져오기
-    inline float kdtree_get_pt(const size_t idx, const size_t dim) const {
-        return dim == 0 ? points[idx].x : points[idx].y;
-    }
-
-    // KD-트리에서 거리를 계산하는 함수
-    template <class BBOX>
-    bool kdtree_get_bbox(BBOX&) const { return false; }
-  };
-  using KDTree = nanoflann::KDTreeSingleIndexAdaptor<nanoflann::L2_Simple_Adaptor<float, PointCloud>, PointCloud, 2>;
-
   cv::Mat cvMaptoMCLMap(const cv::Mat& inputImage, int dilation_size);
   Eigen::Matrix4f mat2eigen(cv::Mat mat);
   cv::Mat eigen2mat(Eigen::Matrix4f mat);

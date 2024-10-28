@@ -38,21 +38,21 @@ mcl::mcl(){
             cornerYmax = corner.y;
         }
     }
-    std::cout<< "[px] X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
+    // std::cout<< "[px] X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
 
     double sigma_hit = 1.0;
     likelihoodField = createLikelihoodField(gridMap_show, sigma_hit);
 
-    numOfParticle = 1000; // 2500
+    numOfParticle = 500; // 2500
     minOdomDistance = 0.01; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 5; // [num]
-    odomCovariance[0] = 0.02; // Rotation to Rotation
-    odomCovariance[1] = 0.02; // translation to Rotation
-    odomCovariance[2] = 0.02; // translation to translation
-    odomCovariance[3] = 0.02; // Rotation to translation
-    odomCovariance[4] = 0.02; // X
-    odomCovariance[5] = 0.02; // Y
+    odomCovariance[0] = 0.002; // Rotation to Rotation
+    odomCovariance[1] = 0.002; // translation to Rotation
+    odomCovariance[2] = 0.002; // translation to translation
+    odomCovariance[3] = 0.002; // Rotation to translation
+    odomCovariance[4] = 0.002; // X
+    odomCovariance[5] = 0.002; // Y
 
     imageResolution = 0.05; // [m] per [pixel]
     roll_rad = -90* M_PI / 180.0;
@@ -109,7 +109,7 @@ mcl::particle mcl::createRandomParticle(){
     }
     while(!tool::isInside(mapCorners, (double)(px_randomX), (double)(px_randomY),
                         (double)px_Xmin, (double)px_Ymin, (double)px_Xmax, (double)px_Ymax)); // [px]
-    std::cout << "createRandom- " << px_randomX << " | "<< px_randomY << std::endl;
+    // std::cout << "createRandom- " << px_randomX << " | "<< px_randomY << std::endl;
     
     Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
     retval.pose = tool::xyzrpy2eigen(randomX, randomY, 0, 0, 0, randomTheta); // [m]
@@ -134,7 +134,7 @@ void mcl::initializeParticles(){
         currParticle.score = 1/(double)numOfParticle;
         particles.emplace_back(currParticle);
 
-        std::cout << "init- " << (int)currParticle.pose(0,3)/imageResolution << " | "<< (int)currParticle.pose(1,3)/imageResolution << std::endl;
+        // std::cout << "init- " << (int)currParticle.pose(0,3)/imageResolution << " | "<< (int)currParticle.pose(1,3)/imageResolution << std::endl;
     }
     
     showInMap();
@@ -186,7 +186,14 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
         if(tool::isInside(mapCorners, px_X, px_Y, cornerXmin, cornerYmin, cornerXmax, cornerYmax)){
             particles.at(i).pose = pose_t_plus_1;
         }else{
-            particles.at(i).pose = createRandomParticle().pose; // 혹은 근처이면서 맵 내부인 위치 만들기
+            float x_all, y_all;
+            for(int i=0; i<particles.size(); ++i){
+                x_all = x_all + particles.at(i).pose(0,3) * particles.at(i).score;
+                y_all = y_all + particles.at(i).pose(1,3) * particles.at(i).score;
+            }
+            // particles.at(i).pose = createRandomParticle().pose; // 혹은 근처이면서 맵 내부인 위치 만들기
+            Eigen::VectorXf postPose = tool::eigen2xyzrpy(pose_t_plus_1);
+            particles.at(i).pose = tool::xyzrpy2eigen(x_all, y_all, 0, 0, 0, postPose(5));
             particles.at(i).score = 1/(double)particles.size(); // 혹은 근처이면서 맵 내부인 위치 만들기
         }
 
@@ -255,12 +262,13 @@ void mcl::resampling(){
 void mcl::showInMap(){
     cv::Mat showMap;
     cv::cvtColor(gridMap_show, showMap, cv::COLOR_GRAY2BGR);
+    
 
     for(int i=0; i<mapCorners.size(); ++i){
         cv::circle(showMap, cv::Point(mapCorners[i].x, mapCorners[i].y), 5, cv::Scalar(0,255,0), -1);
     }
     // cv::Mat showMap = likelihoodField.clone();
-    // cv::cvtColor(showMap, showMap, cv::COLOR_GRAY2BGR);
+    // cv::cvtColor(showMap, showMap, cv::COLOR_GRAY2BGR); 
 
     // draw particles in blue dots
     for(int i=0; i<numOfParticle; ++i){
@@ -273,7 +281,13 @@ void mcl::showInMap(){
         cv::circle(showMap, cv::Point(poseX_px, poseY_px), 1, cv::Scalar(255,0,0), -1); // 1
     }
 
-    if(maxProbParticle.score > 0){
+    Eigen::VectorXf odomxyzrpy = tool::eigen2xyzrpy(odomBefore);
+    int odomX_px = static_cast<int>((odomxyzrpy(0) - mapCenterX) / imageResolution + pxCenterX); // [px]
+    int odomY_px = static_cast<int>((odomxyzrpy(1) - mapCenterY) / imageResolution + pxCenterY); // [px]
+    cv::circle(showMap, cv::Point(odomX_px, odomY_px), 5, cv::Scalar(255,0,255), -1); // 1
+
+    if(maxProbParticle.score >= 0){
+        std::cout << "draw - maxProb score " << maxProbParticle.score << std::endl; 
         float x_all = 0;
         float y_all = 0;
         
@@ -309,20 +323,25 @@ cv::Mat mcl::createLikelihoodField(const cv::Mat& obstacleMap, double sigma_hit)
     cv::distanceTransform(obstacleMap, distanceMap, cv::DIST_L2, 5);
 
     cv::Mat likelihoodField(distanceMap.size(), CV_32F);
+
+    float sumTerm =0.0;
     for(int i = 0; i<distanceMap.rows; ++i){
         for(int j = 0; j<distanceMap.cols; ++j){
             float dist = distanceMap.at<float>(i,j);
-            likelihoodField.at<float>(i,j) = exp(-0.5 * (dist*dist) / (sigma_hit *sigma_hit));
+            likelihoodField.at<float>(i,j) =  exp(-0.5 * (dist*dist) / (sigma_hit *sigma_hit))/sqrt(2*M_PI*pow(sigma_hit,2)); 
+            // sumTerm += likelihoodField.at<float>(i,j);
         }
     }
+    // std::cout << "createField sum : " << sumTerm << std::endl;
+
     return likelihoodField;
 }
 
 double mcl::calculateScanLikelihood(const Eigen::Matrix4Xf scan, const Eigen::Matrix4f pose){
     Eigen::Matrix4Xf transScan = pose * tf_pc2robot * scan; // [m]
 
-    // float q = 1.0; 
-    float q_log = 0.0; 
+    float q = 1.0; 
+    // float q_log = 0.0; 
 
     for(int i=0; i<transScan.cols(); ++i){
         // int ptX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + (likelihoodField.cols / 2.0)); // [px]
@@ -334,19 +353,22 @@ double mcl::calculateScanLikelihood(const Eigen::Matrix4Xf scan, const Eigen::Ma
         if (isRoughlyInside){
         // if (tool::isInside(mapCorners, ptX_px, ptY_px, cornerXmin, cornerYmin, cornerXmax, cornerYmax)){
             float likelihood = likelihoodField.at<float>(ptY_px, ptX_px);
-            // q = q * likelihood;
-            q_log = q_log + log(likelihood);
+            // std::cout <<"likelihood "<< likelihood << std::endl;
+            q = q * likelihood;
+            // q_log = q_log + log(likelihood);
         }else{
-            // q = q * 0.01;
-            q_log = q_log + log(0.01);
+            q = q * 0.01;
+            // q_log = q_log + log(0.01);
         }
+
     }
 
-    // return q;
-    return exp(q_log);
+    return q;
+    // return exp(q_log);
 }
 
 void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2){
+    std::cout << "updateData - init" << std::endl;
     if(is1stPose){
         odomBefore = pose;
         mapCenterX = pose(0,3);
@@ -361,6 +383,9 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
     Eigen::Matrix4f diffOdom = odomBefore.inverse()*pose; // odom After = odom New * diffOdom
     Eigen::VectorXf diffxyzrpy = tool::eigen2xyzrpy(diffOdom);
     
+    // std::cout << "chck DATA x " <<diffxyzrpy[0]<< " | y " << diffxyzrpy[1]<< std::endl; 
+
+
     float diffDistance = sqrt(pow(diffxyzrpy(0), 2) + pow(diffxyzrpy(1), 2)); //[m]
     float diffAngle = fabs(diffxyzrpy(5) * 180.0/3.141592); // [deg]
     
@@ -377,4 +402,26 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
         m_sync_count = m_sync_count +1;
         odomBefore = pose;
     }
+    std::cout << "updateData - END" << std::endl;
+
+}
+
+void mcl::updatePredict(Eigen::Matrix4f pose){
+    std::cout << "updatePredict - init" << std::endl;
+    if(is1stPose){
+        odomBefore = pose;
+        mapCenterX = pose(0,3);
+        mapCenterY = pose(1,3);
+        mapCenterZ = pose(2,3);
+
+        initializeParticles();
+        is1stPose = false;
+    }
+
+    Eigen::Matrix4f diffOdom = odomBefore.inverse()*pose; // odom After = odom New * diffOdom
+    
+    prediction(diffOdom); 
+    odomBefore = pose;
+
+    std::cout << "updatePredict - END" << std::endl;
 }

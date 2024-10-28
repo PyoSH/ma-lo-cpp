@@ -334,21 +334,4 @@ void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud
   extract.filter(*output_cloud);
 }
 
-cv::Point findNearestNeighborKDTree(const std::vector<cv::Point>& polygonPoints, const cv::Point& scanPoint) {
-  tool::PointCloud cloud;
-  cloud.points = polygonPoints;
-  tool::KDTree tree(2, cloud, nanoflann::KDTreeSingleIndexAdaptorParams(10));
-  tree.buildIndex();
-
-  float queryPoint[2] = {static_cast<float>(scanPoint.x), static_cast<float>(scanPoint.y)};
-  size_t nearestIndex;
-  float outDistSqr;
-
-  nanoflann::KNNResultSet<float> resultSet(1);
-  resultSet.init(&nearestIndex, &outDistSqr);
-  tree.findNeighbors(resultSet, queryPoint, nanoflann::SearchParameters());
-
-  return cloud.points[nearestIndex];
-}
-
 }
