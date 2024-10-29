@@ -42,7 +42,7 @@ mcl::mcl(){
     double sigma_hit = 5.0;
     likelihoodField = createLikelihoodField(gridMap_show, sigma_hit);
 
-    numOfParticle = 1; // 2500
+    numOfParticle = 1000; // 2500
     minOdomDistance = 0.05; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 10; // [num]
@@ -117,10 +117,11 @@ void mcl::initializeParticles(){
     for(int i=0; i<numOfParticle; ++i){
         particle currParticle;
         
-        Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
-        Eigen::VectorXf randPose = tool::eigen2xyzrpy(createRandomParticle().pose);
+        // Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
+        // Eigen::VectorXf randPose = tool::eigen2xyzrpy(createRandomParticle().pose);
         // currParticle.pose = tool::xyzrpy2eigen(randPose(0), randPose(1), 0,0,0, initPose(5));
-        currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), 0,0,0, initPose(5));
+        // currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), 0,0,0, initPose(5));
+        currParticle.pose = createRandomParticle().pose;
         currParticle.score = 1/(double)numOfParticle;
         particles.emplace_back(currParticle);
     }
@@ -181,7 +182,7 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
             // // std::cout << "x_all " << x_all << " y_all " << y_all << " theta " << theta << std::endl;
             particles.at(i).pose = tool::xyzrpy2eigen(x_all, y_all, 0, 0, 0, theta);
             // particles.at(i).score = 1/(double)particles.size(); // 혹은 근처이면서 맵 내부인 위치 만들기
-        //     // particles.at(i).score = 1e-6; // 혹은 근처이면서 맵 내부인 위치 만들기
+            particles.at(i).score = 1e-6; // 혹은 근처이면서 맵 내부인 위치 만들기
         }
 
         scoreSum = scoreSum + particles.at(i).score;
@@ -192,8 +193,6 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
 
     showInMap();
 }
-
-// mcl::particle mcl::create
 
 void mcl::weightning(Eigen::Matrix4Xf scan){
     double maxScore = 0.0;
@@ -212,10 +211,8 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
             maxProbParticle = particles.at(i);
             maxProbParticle.scan = scan;
             maxScore = calcedWeight;
-            std::cout << "weightning - "<< i << "th maxscore" << maxScore << std::endl;
+            // std::cout << "weightning - "<< i << "th maxscore" << maxScore << std::endl;
         }
-
-        // std::cout << "weightning - score: " << calcedWeight << " maxScore " << maxScore << " | scoreSum " << scoreSum<<std::endl;
     }
     std::cout << "weightning - scoreSum " << scoreSum << std::endl;
 
@@ -227,11 +224,10 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
         for(int i=0; i<particles.size(); ++i)
             particles.at(i).score = 1.0 / particles.size();
     }
-    
 }
 
 void mcl::resampling(){
-    std::cout << "Resampling..."<< m_sync_count << std::endl;
+    std::cout << "Resampling...!!!!!"<< m_sync_count << std::endl;
 
     std::vector<double> particleScores;
     std::vector<particle> particleSampled;
@@ -250,19 +246,14 @@ void mcl::resampling(){
     std::uniform_real_distribution<double> random_dist(0, 1);
 
     for(int i=0; i<particles.size(); ++i){
-        if (particles[i].score < lowScoreThreshold && random_dist(gen) < resample_ratio) {
-            // 점수가 낮고 무작위 생성 비율에 해당할 경우 새 파티클 생성
-            particle newParticle = createRandomParticle();
-            particleSampled.push_back(newParticle);
-        }else{
-            double darted = dart(gen); // darted number (0~ maximum Scores)
-            auto lowerBound = std::lower_bound(particleScores.begin(), particleScores.end(), darted);
-            int particleIdx = lowerBound - particleScores.begin(); // index of particle in particles ??
+        double darted = dart(gen); // darted number (0~ maximum Scores)
+        auto lowerBound = std::lower_bound(particleScores.begin(), particleScores.end(), darted);
+        int particleIdx = lowerBound - particleScores.begin(); // index of particle in particles ??
 
-            particle selectedParticle = particles.at(particleIdx);
+        particle selectedParticle = particles.at(particleIdx);
 
-            particleSampled.emplace_back(selectedParticle);
-        }
+        particleSampled.emplace_back(selectedParticle);
+        
     }
     particles = particleSampled;
 
@@ -346,53 +337,54 @@ cv::Mat mcl::createLikelihoodField(const cv::Mat& obstacleMap, double sigma_hit)
 }
 
 double mcl::calculateScanLikelihood(const Eigen::Matrix4Xf scan, const Eigen::Matrix4f pose){
-    cv::Mat showMap;
-    cv::cvtColor(gridMap_show, showMap, cv::COLOR_GRAY2BGR);
-    cv::cvtColor(likelihoodField.clone(), showMap, cv::COLOR_GRAY2BGR);
+    // cv::Mat showMap;
+    // cv::cvtColor(gridMap_show, showMap, cv::COLOR_GRAY2BGR);
+    // cv::cvtColor(likelihoodField.clone(), showMap, cv::COLOR_GRAY2BGR);
     
     Eigen::Matrix4Xf transScan = pose * tf_pc2robot * scan; // [m]
 
-    float q = 1.0; 
-    // float q_log = 0.0; 
-    float z_hit = 0.8;
-    float z_rand = 0.2;
-    float z_max = 5;
-    float random_likelihood = 1.0/z_max;
-    float likelihood_min = 1e-3;
+    // double q = 1.0; 
+    double q_log = 0.0; 
+    double z_hit = 0.8;
+    double z_rand = 0.2;
+    double z_max = 5;
+    double random_likelihood = 1.0/z_max;
+    double likelihood_min = 1e-3;
 
     int overlap_cnt = 0;
     int total_cnt = transScan.cols();
 
-    for(int i=0; i<transScan.cols(); ++i){
+    for(int i=0; i<total_cnt; ++i){
         int ptX_px = static_cast<int>((transScan(0,i) - mapCenterX) / imageResolution + pxCenterX); // [px]
         int ptY_px = static_cast<int>((transScan(1,i) - mapCenterY) / imageResolution + pxCenterY); // [px]
         
-        float likelihood = std::max(likelihoodField.at<float>(ptY_px, ptX_px), likelihood_min);
+        double likelihood = static_cast<double>(std::max(likelihoodField.at<float>(ptY_px, ptX_px), (float)likelihood_min) );
         // bool isRoughlyInside = (cornerXmin < ptX_px && ptX_px < cornerXmax) && (cornerYmin < ptY_px && ptY_px < cornerYmax);
         // if (isRoughlyInside){
-            q = q * (z_hit*likelihood+z_rand*random_likelihood);
-            // q_log = q_log + log(z_hit*likelihood+z_rand*random_likelihood);
+            // q = q * (z_hit*likelihood+z_rand*random_likelihood);
+            q_log = q_log + log(z_hit*likelihood+z_rand*random_likelihood);
 
+            // std::cout << "!!" << likelihood << " log calc"<< log(z_hit*likelihood+z_rand*random_likelihood) << " | q_log "<< q_log<<std::endl;
             if (likelihood > likelihood_min) {
-                std::cout << "!!" << likelihood << std::endl;
                 overlap_cnt++;
             }
 
-        cv::circle(showMap, cv::Point(ptX_px, ptY_px), 1, cv::Scalar(0,255,255), -1);
+        // cv::circle(showMap, cv::Point(ptX_px, ptY_px), 1, cv::Scalar(0,255,255), -1);
     }
+    q_log = static_cast<double>(q_log / transScan.cols()); // mean log
 
     float overlap_ratio = static_cast<float>(overlap_cnt) / total_cnt;
     // std::cout << "!! ratio" << overlap_ratio << " overlap cnt "<< overlap_cnt<< " total cnt "<< total_cnt<<std::endl;
-    std::cout << "!! retval " << q  <<std::endl;
+    // std::cout << "!! exp retval " << exp(q_log)  <<std::endl;
 
     if (overlap_ratio < 0.3) {  // 최소 겹치는 비율 설정
         return 1e-6;
     }
 
-    cv::imshow("LikelihoodField with calculate", showMap);
-    cv::waitKey(1);
-    return q;
-    // return exp(q_log);
+    // cv::imshow("LikelihoodField with calculate", showMap);
+    // cv::waitKey(1);
+    // return q;
+    return exp(q_log);
 }
 
 void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2){
@@ -422,7 +414,7 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
 
         predictionCounter++;
         if(predictionCounter == repropagateCountNeeded){
-            // resampling();
+            resampling();
             predictionCounter = 0;
         }
 
