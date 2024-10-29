@@ -4,10 +4,6 @@ std::deque<Eigen::Matrix4f> vec_poses;
 std::deque<double> vec_poses_time;
 std::deque<Eigen::Matrix4Xf> vec_scan;
 std::deque<double>vec_scan_time;
-// std::vector<Eigen::Matrix4f> vec_poses;
-// std::vector<double> vec_poses_time;
-// std::vector<Eigen::Matrix4Xf> vec_scan;
-// std::vector<double>vec_scan_time;
 
 mcl mclocalizer;
 void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg);
@@ -33,7 +29,6 @@ void check_data(){
   {
     // std::cout<<"CHECK-DATA init"<<std::endl;
     if(fabs(vec_poses_time[0] - vec_scan_time[0])>0.1){
-      mclocalizer.updatePredict(vec_poses[0]);
       if(vec_poses_time[0]>vec_scan_time[0]){
         vec_scan.erase(vec_scan.begin());
         vec_scan_time.erase(vec_scan_time.begin());
@@ -49,6 +44,7 @@ void check_data(){
         vec_poses_time.pop_front();
     }
   }
+}
   // std::cout<<"CHECK-DATA end"<<std::endl;
 }
 

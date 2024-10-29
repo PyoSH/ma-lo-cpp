@@ -42,10 +42,10 @@ mcl::mcl(){
     double sigma_hit = 5.0;
     likelihoodField = createLikelihoodField(gridMap_show, sigma_hit);
 
-    numOfParticle = 1000; // 2500
+    numOfParticle = 2000; // 2500
     minOdomDistance = 0.05; //[m]
     minOdomAngle = 5; // [deg]
-    repropagateCountNeeded = 10; // [num]
+    repropagateCountNeeded = 20; // [num]
     odomCovariance[0] = 0.0002; // Rotation to Rotation 0.02
     odomCovariance[1] = 0.0002; // translation to Rotation
     odomCovariance[2] = 0.0002; // translation to translation
@@ -118,11 +118,11 @@ void mcl::initializeParticles(){
     for(int i=0; i<numOfParticle; ++i){
         particle currParticle;
         
-        Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
-        Eigen::VectorXf randPose = tool::eigen2xyzrpy(createRandomParticle().pose);
-        currParticle.pose = tool::xyzrpy2eigen(randPose(0), randPose(1), 0,0,0, initPose(5));
-        currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), 0,0,0, initPose(5));
-        // currParticle.pose = createRandomParticle().pose;
+        // Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
+        // Eigen::VectorXf randPose = tool::eigen2xyzrpy(createRandomParticle().pose);
+        // currParticle.pose = tool::xyzrpy2eigen(randPose(0), randPose(1), 0,0,0, initPose(5));
+        // currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), 0,0,0, initPose(5));
+        currParticle.pose = createRandomParticle().pose;
         currParticle.score = 1/(double)numOfParticle;
         particles.emplace_back(currParticle);
     }
@@ -175,23 +175,50 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
         if(isInside_OGM(gridMap_show, px_X, px_Y) == "free"){
             particles.at(i).pose = pose_t_plus_1;
         }else{
-            // particles.at(i).pose = createRandomParticle().pose; // 문제의 부분!!
-            float x_all(0.0), y_all(0.0);
-            for(int i=0; i<particles.size(); ++i){
-                x_all = x_all + particles.at(i).pose(0,3) * particles.at(i).score;
-                y_all = y_all + particles.at(i).pose(1,3) * particles.at(i).score;
+
+            bool valid_position_found = false;
+            int attempts = 0; // 무한 루프 방지를 위한 샘플링 시도 횟수 제한
+
+            while(!valid_position_found && attempts < 20) { // 최대 10번 시도
+                // 가우시안 분포를 사용해 새 위치 샘플링
+                double sigma_x = 1;
+                double sigma_y = 1;
+                std::normal_distribution<double> gaussian_distribution_x(pose_t_plus_1(0,3), sigma_x); // x 방향 가우시안
+                std::normal_distribution<double> gaussian_distribution_y(pose_t_plus_1(1,3), sigma_y); // y 방향 가우시안
+                std::uniform_real_distribution<float> theta_pos(-M_PI, M_PI); // -180~180 [deg]
+
+                // 가우시안 분포를 사용해 새 위치를 샘플링
+                double sampled_x = gaussian_distribution_x(gen);
+                double sampled_y = gaussian_distribution_y(gen);
+                double sampledTheta = theta_pos(gen); // [deg]
+
+                // 샘플링한 위치의 맵 좌표 계산
+                int new_px_X = static_cast<int>((sampled_x-mapCenterX)/imageResolution + pxCenterX);
+                int new_px_Y = static_cast<int>((sampled_y-mapCenterY)/imageResolution + pxCenterY);
+
+                // 맵 내에서 자유 공간인지 확인
+                if(isInside_OGM(gridMap_show, new_px_X, new_px_Y) == "free") {
+                    // 자유 공간이라면 위치 적용
+                    particles.at(i).pose = tool::xyzrpy2eigen(sampled_x, sampled_y, 0, 0, 0, sampledTheta);
+                    valid_position_found = true;
+                }
+                attempts++;
             }
-            // // std::cout << "x_all " << x_all << " y_all " << y_all << " theta " << theta << std::endl;
-            particles.at(i).pose = tool::xyzrpy2eigen(x_all, y_all, 0, 0, 0, theta);
-            // particles.at(i).score = 1/(double)particles.size(); // 혹은 근처이면서 맵 내부인 위치 만들기
-            particles.at(i).score = 1e-6; // 혹은 근처이면서 맵 내부인 위치 만들기
+
+            // 제한 횟수 초과 시 랜덤하게 맵 내부의 자유 공간에 파티클 생성
+            if(!valid_position_found) {
+                particles.at(i).pose = createRandomParticle().pose;
+                particles.at(i).score = 1.0 / static_cast<double>(particles.size());
+            }
         }
 
         scoreSum = scoreSum + particles.at(i).score;
     }
     for(int i=0; i<particles.size(); ++i){
         particles.at(i).score = particles.at(i).score/scoreSum; // normalize the score
+        // particles.at(i).score = 1/numOfParticle; // normalize the score
     }
+    std::cout << "prediction - scoreSum " << scoreSum << std::endl;
 
     showInMap();
 }
@@ -216,20 +243,15 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
             // std::cout << "weightning - "<< i << "th maxscore" << maxScore << std::endl;
         }
     }
+    
     std::cout << "weightning - scoreSum " << scoreSum << std::endl;
 
-    // 가중치의 합이 너무 작을 때 정규화
-    if(scoreSum > 1e-8){  // scoreSum이 너무 작지 않도록
-        for(int i=0; i<particles.size(); ++i)
-            particles.at(i).score /= scoreSum;
-    }else{
-        for(int i=0; i<particles.size(); ++i)
-            particles.at(i).score = 1.0 / particles.size();
-    }
+    for(int i=0; i<particles.size(); ++i)
+        particles.at(i).score /= scoreSum;
 }
 
 void mcl::resampling(){
-    std::cout << "Resampling...!!!!!"<< m_sync_count << std::endl;
+    std::cout << "!!!!!Resampling!!!!!"<< m_sync_count << std::endl;
 
     std::vector<double> particleScores;
     std::vector<particle> particleSampled;
@@ -243,6 +265,8 @@ void mcl::resampling(){
         scoreBaseline += std::max(particles.at(i).score, min_weight);
         particleScores.emplace_back(scoreBaseline);
     }
+
+    std::cout << "Resampling - before resample scoreSum" << scoreBaseline << std::endl;
 
     std::uniform_real_distribution<double> dart(0, scoreBaseline);
     std::uniform_real_distribution<double> random_dist(0, 1);
@@ -260,19 +284,20 @@ void mcl::resampling(){
     particles = particleSampled;
 
     // 정규화
-    // double scoreSum = 0;
-    // for (auto& p : particles) {
-    //     scoreSum += p.score;
-    // }
-    // for (auto& p : particles) {
-    //     p.score /= scoreSum;
-    // }
+    double scoreSum = 0;
+    for (auto& p : particles) {
+        scoreSum += p.score;
+    }
+    std::cout << "Resampling - after resample scoreSum" << scoreSum << std::endl;
+    for (auto& p : particles) {
+        p.score = 1/numOfParticle;
+    }
 }
 
 void mcl::showInMap(){
     cv::Mat showMap;
-    // cv::cvtColor(gridMap_show, showMap, cv::COLOR_GRAY2BGR);
-    cv::cvtColor(likelihoodField.clone(), showMap, cv::COLOR_GRAY2BGR);
+    cv::cvtColor(gridMap_show.clone(), showMap, cv::COLOR_GRAY2BGR);
+    // cv::cvtColor(likelihoodField.clone(), showMap, cv::COLOR_GRAY2BGR);
     
     // draw particles in blue dots
     for(int i=0; i<numOfParticle; ++i){
@@ -398,7 +423,7 @@ std::string mcl::isInside_OGM(const cv::Mat& gridMap, double x_px, double y_px){
 }
 
 void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2){
-    std::cout << "updateData - init" << std::endl;
+    // std::cout << "updateData - init" << std::endl;
     if(is1stPose){
         odomBefore = pose;
         mapCenterX = pose(0,3);
@@ -415,7 +440,7 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
     float diffDistance = sqrt(pow(diffxyzrpy(0), 2) + pow(diffxyzrpy(1), 2)); //[m]
     float diffAngle = fabs(diffxyzrpy(5) * 180.0/3.141592); // [deg]
     
-    // if(diffDistance > minOdomDistance || diffAngle > minOdomAngle){
+    if(diffDistance > minOdomDistance || diffAngle > minOdomAngle){
         prediction(diffOdom); 
         weightning(scan);
 
@@ -427,13 +452,13 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
 
         m_sync_count = m_sync_count +1;
         odomBefore = pose;
-    // }
-    std::cout << "updateData - END" << std::endl;
+    }
+    // std::cout << "updateData - END" << std::endl;
 
 }
 
 void mcl::updatePredict(Eigen::Matrix4f pose){
-    std::cout << "updatePredict - init" << std::endl;
+    // std::cout << "updatePredict - init" << std::endl;
     if(is1stPose){
         odomBefore = pose;
         mapCenterX = pose(0,3);
@@ -450,5 +475,5 @@ void mcl::updatePredict(Eigen::Matrix4f pose){
     predictionCounter++;
     odomBefore = pose;
 
-    std::cout << "updatePredict - END" << std::endl;
+    // std::cout << "updatePredict - END" << std::endl;
 }
