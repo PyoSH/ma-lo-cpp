@@ -100,8 +100,9 @@ mcl::particle mcl::createRandomParticle(){
         px_randomX = static_cast<int>((randomX - mapCenterX) / imageResolution + pxCenterX); // [px]
         px_randomY = static_cast<int>((randomY - mapCenterY) / imageResolution + pxCenterY); // [px]
     }
-    while(!tool::isInside(mapCorners, (double)(px_randomX), (double)(px_randomY),
-                        (double)px_Xmin, (double)px_Ymin, (double)px_Xmax, (double)px_Ymax)); // [px]
+    // while(!tool::isInside(mapCorners, (double)(px_randomX), (double)(px_randomY),
+    //                     (double)px_Xmin, (double)px_Ymin, (double)px_Xmax, (double)px_Ymax)); // [px]
+    while(!(isInside_OGM(gridMap_show, (double)(px_randomX), (double)(px_randomY)) == "free")); // [px]
     // std::cout << "createRandom- " << px_randomX << " | "<< px_randomY << std::endl;
     
     Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
@@ -117,11 +118,11 @@ void mcl::initializeParticles(){
     for(int i=0; i<numOfParticle; ++i){
         particle currParticle;
         
-        // Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
-        // Eigen::VectorXf randPose = tool::eigen2xyzrpy(createRandomParticle().pose);
-        // currParticle.pose = tool::xyzrpy2eigen(randPose(0), randPose(1), 0,0,0, initPose(5));
-        // currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), 0,0,0, initPose(5));
-        currParticle.pose = createRandomParticle().pose;
+        Eigen::VectorXf initPose = tool::eigen2xyzrpy(odomBefore);
+        Eigen::VectorXf randPose = tool::eigen2xyzrpy(createRandomParticle().pose);
+        currParticle.pose = tool::xyzrpy2eigen(randPose(0), randPose(1), 0,0,0, initPose(5));
+        currParticle.pose = tool::xyzrpy2eigen(initPose(0), initPose(1), 0,0,0, initPose(5));
+        // currParticle.pose = createRandomParticle().pose;
         currParticle.score = 1/(double)numOfParticle;
         particles.emplace_back(currParticle);
     }
@@ -170,7 +171,8 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
         // motion model with map
         int px_X = static_cast<int>((pose_t_plus_1(0,3) - mapCenterX) / imageResolution + pxCenterX); // [px]
         int px_Y = static_cast<int>((pose_t_plus_1(1,3) - mapCenterY) / imageResolution + pxCenterY); // [px]
-        if(tool::isInside(mapCorners, px_X, px_Y, cornerXmin, cornerYmin, cornerXmax, cornerYmax)){
+        // if(tool::isInside(mapCorners, px_X, px_Y, cornerXmin, cornerYmin, cornerXmax, cornerYmax)){
+        if(isInside_OGM(gridMap_show, px_X, px_Y) == "free"){
             particles.at(i).pose = pose_t_plus_1;
         }else{
             // particles.at(i).pose = createRandomParticle().pose; // 문제의 부분!!
@@ -387,6 +389,14 @@ double mcl::calculateScanLikelihood(const Eigen::Matrix4Xf scan, const Eigen::Ma
     return exp(q_log);
 }
 
+std::string mcl::isInside_OGM(const cv::Mat& gridMap, double x_px, double y_px){
+  int currVal = gridMap.at<uchar>(y_px, x_px);
+//   std::cout<< "isInside_OGM type" << gridMap.type() <<" | value " <<currVal << std::endl;
+  if(currVal >= 250) return "free";
+  else if(currVal == 0) return "occupied";
+  else return "unknown";
+}
+
 void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2){
     std::cout << "updateData - init" << std::endl;
     if(is1stPose){
@@ -398,12 +408,9 @@ void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, dou
         initializeParticles();
         is1stPose = false;
     }
-    // std::cout <<"UPDATE-DATA Pose_t: \n"<< pose << std::endl; // ?!?
 
     Eigen::Matrix4f diffOdom = odomBefore.inverse()*pose; // odom After = odom New * diffOdom
     Eigen::VectorXf diffxyzrpy = tool::eigen2xyzrpy(diffOdom);
-    
-    // std::cout << "chck DATA x " <<diffxyzrpy[0]<< " | y " << diffxyzrpy[1]<< std::endl; 
 
     float diffDistance = sqrt(pow(diffxyzrpy(0), 2) + pow(diffxyzrpy(1), 2)); //[m]
     float diffAngle = fabs(diffxyzrpy(5) * 180.0/3.141592); // [deg]

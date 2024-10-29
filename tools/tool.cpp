@@ -121,16 +121,12 @@ void mat2xyzrpy(cv::Mat mat, float *x, float *y, float *z, float *roll, float *p
   *yaw = rot_vec.at<float>(2);
 }
 
-
-
-
 Eigen::VectorXf eigen2xyzrpy(Eigen::Matrix4f mat)
 {
   Eigen::VectorXf result(6);
   mat2xyzrpy(eigen2mat(mat), &result[0], &result[1], &result[2], &result[3], &result[4], &result[5]);
   return result;
 }
-
 
 Eigen::Matrix4f xyzrpy2eigen(float x, float y, float z, float roll, float pitch, float yaw)
 {
@@ -333,5 +329,14 @@ void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud
   extract.setNegative(true);  
   extract.filter(*output_cloud);
 }
+
+// std::string isInside_OGM(const cv::Mat& gridMap, double x_px, double y_px){
+//   float currVal = gridMap.at<float>(y_px, x_px);
+//   std::cout<< "isInside_OGM value " <<currVal << std::endl;
+//   if(currVal >= 250) return "free";
+//   else if(currVal == 0) return "occupied";
+//   else return "unknown";
+// }
+
 
 }

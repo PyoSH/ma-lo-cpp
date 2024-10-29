@@ -88,6 +88,7 @@ private:
     void showInMap();
     cv::Mat createLikelihoodField(const cv::Mat& obstacleMap, double sigma_hit);
     double calculateScanLikelihood(const Eigen::Matrix4Xf scan, const Eigen::Matrix4f pose);
+    std::string isInside_OGM(const cv::Mat& gridMap, double x_px, double y_px);
 
 public:
   mcl();

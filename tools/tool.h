@@ -35,6 +35,6 @@ namespace tool
   double perpendicular_distance(cv::Point point, cv::Point start, cv::Point end);
   void removeGroundPlane(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud);
   void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud, pcl::PointCloud<pcl::PointXYZ>::Ptr output_cloud, float distance_threshold, float normal_threshold);
-  cv::Point findNearestNeighborKDTree(const std::vector<cv::Point>& polygonPoints, const cv::Point& scanPoint);
+  // std::string isInside_OGM(cv::Mat& OGM, double x, double y);
 }
 #endif
