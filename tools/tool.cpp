@@ -330,13 +330,4 @@ void removeGroundPlaneWithNormal(pcl::PointCloud<pcl::PointXYZ>::Ptr input_cloud
   extract.filter(*output_cloud);
 }
 
-// std::string isInside_OGM(const cv::Mat& gridMap, double x_px, double y_px){
-//   float currVal = gridMap.at<float>(y_px, x_px);
-//   std::cout<< "isInside_OGM value " <<currVal << std::endl;
-//   if(currVal >= 250) return "free";
-//   else if(currVal == 0) return "occupied";
-//   else return "unknown";
-// }
-
-
 }

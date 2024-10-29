@@ -29,6 +29,7 @@ void check_data(){
   {
     // std::cout<<"CHECK-DATA init"<<std::endl;
     mclocalizer.updatePredict(vec_poses.front());
+    mclocalizer.publishPose(vec_poses_time.front());
 
     if(fabs(vec_poses_time.front() - vec_scan_time.front())>0.1){
       if(vec_poses_time.front()>vec_scan_time.front()){ // pose가 나중에 들어와서 scan 버림
@@ -57,7 +58,6 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr &msg){
 
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_no_ground(new pcl::PointCloud<pcl::PointXYZ>);
     tool::removeGroundPlane(pc_xyz, pc_no_ground);
-    // tool::removeGroundPlaneWithNormal(pc_xyz, pc_no_ground, 0.01, 0.1);
 
     int pointNum = pc_no_ground->points.size();
     Eigen::Matrix4Xf eigenScan = Eigen::Matrix4Xf::Ones(4, 1);
@@ -82,7 +82,6 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr &msg){
     vec_scan_time.emplace_back(msg->header.stamp.toSec());
     check_data();
 
-    // mclocalizer.updateScan(eigenScan);
     // std::cout<<"CB - SCAN END"<<std::endl;
 }
 
@@ -97,7 +96,6 @@ void callback_pose(const nav_msgs::Odometry::ConstPtr &msg)
                 m[2][0], m[2][1], m[2][2], msg->pose.pose.position.z,
                 0,0,0,1;
 
-    // std::cout <<"CB-POSE Pose_t: \n"<< eigenPose << std::endl; // ?!?
     vec_poses.emplace_back(eigenPose);
     vec_poses_time.emplace_back(msg->header.stamp.toSec());
     check_data();   
