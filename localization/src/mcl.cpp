@@ -42,7 +42,7 @@ mcl::mcl(){
     double sigma_hit = 5.0;
     likelihoodField = createLikelihoodField(gridMap_show, sigma_hit);
 
-    numOfParticle = 2000; // 2500
+    numOfParticle = 1000; // 2500
     minOdomDistance = 0.05; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 20; // [num]
@@ -50,8 +50,8 @@ mcl::mcl(){
     odomCovariance[1] = 0.0002; // translation to Rotation
     odomCovariance[2] = 0.0002; // translation to translation
     odomCovariance[3] = 0.0002; // Rotation to translation
-    odomCovariance[4] = 0.0002; // X
-    odomCovariance[5] = 0.0002; // Y
+    odomCovariance[4] = 0.02; // X
+    odomCovariance[5] = 0.02; // Y
 
     imageResolution = 0.05; // [m] per [pixel]
     roll_rad = -90* M_PI / 180.0;
@@ -266,7 +266,7 @@ void mcl::resampling(){
         particleScores.emplace_back(scoreBaseline);
     }
 
-    std::cout << "Resampling - before resample scoreSum" << scoreBaseline << std::endl;
+    // std::cout << "Resampling - before resample scoreSum" << scoreBaseline << std::endl;
 
     std::uniform_real_distribution<double> dart(0, scoreBaseline);
     std::uniform_real_distribution<double> random_dist(0, 1);
@@ -284,11 +284,11 @@ void mcl::resampling(){
     particles = particleSampled;
 
     // 정규화
-    double scoreSum = 0;
-    for (auto& p : particles) {
-        scoreSum += p.score;
-    }
-    std::cout << "Resampling - after resample scoreSum" << scoreSum << std::endl;
+    // double scoreSum = 0;
+    // for (auto& p : particles) {
+    //     scoreSum += p.score;
+    // }
+    // std::cout << "Resampling - after resample scoreSum" << scoreSum << std::endl;
     for (auto& p : particles) {
         p.score = 1/numOfParticle;
     }
@@ -422,40 +422,19 @@ std::string mcl::isInside_OGM(const cv::Mat& gridMap, double x_px, double y_px){
   else return "unknown";
 }
 
-void mcl::updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2){
-    // std::cout << "updateData - init" << std::endl;
-    if(is1stPose){
-        odomBefore = pose;
-        mapCenterX = pose(0,3);
-        mapCenterY = pose(1,3);
-        mapCenterZ = pose(2,3);
-
-        initializeParticles();
-        is1stPose = false;
+void mcl::updateScan(Eigen::Matrix4Xf scan){
+    // std::cout << "updateData - init" << std::endl;    
+    weightning(scan);
+    predictionCounter++;
+    if(predictionCounter == repropagateCountNeeded){
+        resampling();
+        predictionCounter = 0;
     }
 
-    Eigen::Matrix4f diffOdom = odomBefore.inverse()*pose; // odom After = odom New * diffOdom
-    Eigen::VectorXf diffxyzrpy = tool::eigen2xyzrpy(diffOdom);
-
-    float diffDistance = sqrt(pow(diffxyzrpy(0), 2) + pow(diffxyzrpy(1), 2)); //[m]
-    float diffAngle = fabs(diffxyzrpy(5) * 180.0/3.141592); // [deg]
-    
-    if(diffDistance > minOdomDistance || diffAngle > minOdomAngle){
-        prediction(diffOdom); 
-        weightning(scan);
-
-        predictionCounter++;
-        if(predictionCounter == repropagateCountNeeded){
-            resampling();
-            predictionCounter = 0;
-        }
-
-        m_sync_count = m_sync_count +1;
-        odomBefore = pose;
-    }
-    // std::cout << "updateData - END" << std::endl;
-
+    m_sync_count = m_sync_count +1;
+//  std::cout << "updateData - END" << std::endl;
 }
+
 
 void mcl::updatePredict(Eigen::Matrix4f pose){
     // std::cout << "updatePredict - init" << std::endl;
@@ -470,9 +449,7 @@ void mcl::updatePredict(Eigen::Matrix4f pose){
     }
 
     Eigen::Matrix4f diffOdom = odomBefore.inverse()*pose; // odom After = odom New * diffOdom
-    
     prediction(diffOdom); 
-    predictionCounter++;
     odomBefore = pose;
 
     // std::cout << "updatePredict - END" << std::endl;

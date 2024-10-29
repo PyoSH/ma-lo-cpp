@@ -93,7 +93,7 @@ private:
 public:
   mcl();
   ~mcl();
-  void updateData(Eigen::Matrix4f pose, Eigen::Matrix4Xf scan, double t1, double t2);
+  void updateScan(Eigen::Matrix4Xf scan);
   void updatePredict(Eigen::Matrix4f pose);
 };
 

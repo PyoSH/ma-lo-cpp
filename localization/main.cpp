@@ -28,23 +28,25 @@ void check_data(){
   while(!vec_poses.empty() && !vec_scan.empty())
   {
     // std::cout<<"CHECK-DATA init"<<std::endl;
-    if(fabs(vec_poses_time[0] - vec_scan_time[0])>0.1){
-      if(vec_poses_time[0]>vec_scan_time[0]){
-        vec_scan.erase(vec_scan.begin());
-        vec_scan_time.erase(vec_scan_time.begin());
-      }else{
-        vec_poses.erase(vec_poses.begin());
-        vec_poses_time.erase(vec_poses_time.begin());
+    mclocalizer.updatePredict(vec_poses.front());
+
+    if(fabs(vec_poses_time.front() - vec_scan_time.front())>0.1){
+      if(vec_poses_time.front()>vec_scan_time.front()){ // pose가 나중에 들어와서 scan 버림
+        vec_scan.pop_front();
+        vec_scan_time.pop_front();
+      }else{ // scan이 나중에 들어와서 pose 버림
+        vec_poses.pop_front();
+        vec_poses_time.pop_front();
       }
     }else{
-        mclocalizer.updateData(vec_poses[0], vec_scan[0], vec_poses_time[0], vec_scan_time[0]);
+        mclocalizer.updateScan(vec_scan.front());
+        
         vec_scan.pop_front();
         vec_scan_time.pop_front();
         vec_poses.pop_front();
         vec_poses_time.pop_front();
     }
   }
-}
   // std::cout<<"CHECK-DATA end"<<std::endl;
 }
 
@@ -56,7 +58,6 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr &msg){
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_no_ground(new pcl::PointCloud<pcl::PointXYZ>);
     tool::removeGroundPlane(pc_xyz, pc_no_ground);
     // tool::removeGroundPlaneWithNormal(pc_xyz, pc_no_ground, 0.01, 0.1);
-
 
     int pointNum = pc_no_ground->points.size();
     Eigen::Matrix4Xf eigenScan = Eigen::Matrix4Xf::Ones(4, 1);
@@ -78,9 +79,10 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr &msg){
         }
     }
     vec_scan.emplace_back(eigenScan);
-    // std::cout<<"CB - SCAN 5"<<std::endl;
     vec_scan_time.emplace_back(msg->header.stamp.toSec());
     check_data();
+
+    // mclocalizer.updateScan(eigenScan);
     // std::cout<<"CB - SCAN END"<<std::endl;
 }
 
@@ -98,6 +100,6 @@ void callback_pose(const nav_msgs::Odometry::ConstPtr &msg)
     // std::cout <<"CB-POSE Pose_t: \n"<< eigenPose << std::endl; // ?!?
     vec_poses.emplace_back(eigenPose);
     vec_poses_time.emplace_back(msg->header.stamp.toSec());
-    check_data();
+    check_data();   
     // std::cout<<"CB-POSE end"<<std::endl;
 }
