@@ -280,8 +280,8 @@ void mcl::showInMap(){
     }
 
     Eigen::VectorXf odomxyzrpy = tool::eigen2xyzrpy(odomBefore);
-    int odomX_px = static_cast<int>((odomxyzrpy(0) - mapCenterX) / imageResolution + pxCenterX); // [px]
-    int odomY_px = static_cast<int>((odomxyzrpy(1) - mapCenterY) / imageResolution + pxCenterY); // [px]
+    int odomX_px = static_cast<int>((odomxyzrpy(0)) / imageResolution + pxCenterX); // [px]
+    int odomY_px = static_cast<int>((odomxyzrpy(1)) / imageResolution + pxCenterY); // [px]
     cv::circle(showMap, cv::Point(odomX_px, odomY_px), 5, cv::Scalar(255,0,255), -1); // 1
 
     if(maxProbParticle.score > 0){
@@ -406,7 +406,7 @@ void mcl::updatePredict(Eigen::Matrix4f pose){
     // std::cout << "updatePredict - END" << std::endl;
 }
 
-void mcl::publishPose(double t){
+void mcl::publishPose(Eigen::Matrix4f pose, double t){
     float x_all(0.0), y_all(0.0);
 
     for(auto& p : particles){
@@ -418,7 +418,7 @@ void mcl::publishPose(double t){
     weightedMeanPose(1) = y_all;
 
     Eigen::VectorXf retVal;
-    Eigen::VectorXf beforePose = tool::eigen2xyzrpy(odomBefore);
+    Eigen::VectorXf beforePose = tool::eigen2xyzrpy(pose);
     double dist_L2 = sqrt(pow(beforePose(0) - weightedMeanPose(0),2)+pow(beforePose(1) - weightedMeanPose(1),2));
     if (dist_L2 <10.0) retVal = weightedMeanPose;
     else retVal = beforePose;

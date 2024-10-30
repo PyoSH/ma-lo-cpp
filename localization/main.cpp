@@ -29,7 +29,7 @@ void check_data(){
   {
     // std::cout<<"CHECK-DATA init"<<std::endl;
     mclocalizer.updatePredict(vec_poses.front());
-    mclocalizer.publishPose(vec_poses_time.front());
+    mclocalizer.publishPose(vec_poses.front(), vec_poses_time.front());
 
     if(fabs(vec_poses_time.front() - vec_scan_time.front())>0.1){
       if(vec_poses_time.front()>vec_scan_time.front()){ // pose가 나중에 들어와서 scan 버림
