@@ -4,40 +4,34 @@ mcl::mcl(){
     m_sync_count = 0;
     gen.seed(rd());
 
-    gridMap_show = cv::imread("/home/pyo/map_closed.png", cv::IMREAD_GRAYSCALE);
+    gridMap_show = cv::imread("/home/pyo/map_new.png", cv::IMREAD_GRAYSCALE);
     pxCenterX = 200/2;
-    pxCenterY = gridMap_show.rows - 200/2;
+    pxCenterY = gridMap_show.rows - 200/2 - 200;
 
     gridMap_use = tool::cvMaptoMCLMap(gridMap_show.clone(), 2);
     std::vector<std::vector<cv::Point>> contours;
     cv::findContours(gridMap_use, contours, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_NONE);
 
-    epsilon = 1.0;  // 허용 오차 값 (이미지 크기에 따라 조정 필요)
-    std::vector<std::vector<cv::Point>> simplifiedContours;
+    mapCorners = contours[0];
 
-    for (const auto& contour : contours) {
-        std::vector<cv::Point> simplified = tool::getPolygonMap(contour, epsilon);
-        simplifiedContours.push_back(simplified);
-    }
-
-    mapCorners = simplifiedContours[0];
-
-    cornerXmin = mapCorners[0].x;
-    cornerXmax = mapCorners[0].x;
-    cornerYmin = mapCorners[0].y;
-    cornerYmin = mapCorners[0].y;
-    for(const auto& corner : mapCorners) {
-        if (corner.x < cornerXmin) {
-            cornerXmin = corner.x;
-        }if (corner.x > cornerXmax) {
-            cornerXmax = corner.x;
-        }if (corner.y < cornerYmin) {
-            cornerYmin = corner.y;
-        }if (corner.y > cornerYmax) {
-            cornerYmax = corner.y;
+    cornerXmin = gridMap_show.cols/2;
+    cornerXmax = gridMap_show.cols/2;
+    cornerYmin = gridMap_show.rows/2;
+    cornerYmin = gridMap_show.rows/2;
+    
+    for (int i = 0; i < gridMap_show.cols; i++) {
+        for (int y = 0; y < gridMap_show.rows; y++) {
+            
+            uchar currPx = gridMap_show.at<uchar>(y, i);
+            if (currPx == 0 || currPx >=250) {
+                if (cornerXmin == -1 || i < cornerXmin) cornerXmin = i;
+                if (cornerXmax == -1 || i > cornerXmax) cornerXmax = i;
+                if (cornerYmin == -1 || y < cornerYmin) cornerYmin = y;
+                if (cornerYmax == -1 || y > cornerYmax) cornerYmax = y;
+            }
         }
     }
-    // std::cout<< "[px] X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
+    std::cout<< "[px] X min " << cornerXmin << "| Y min "<< cornerYmin << "| X max "<< cornerXmax << " | Y max "<<cornerYmax << std::endl;
 
     double sigma_hit = 5.0;
     likelihoodField = createLikelihoodField(gridMap_show, sigma_hit);
