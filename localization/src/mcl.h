@@ -94,9 +94,11 @@ private:
 public:
   mcl();
   ~mcl();
+  bool canScanWrite;
+  bool isPubOngoing;
   void updateScan(Eigen::Matrix4Xf scan);
   void updatePredict(Eigen::Matrix4f pose);
-  void publishPose(Eigen::Matrix4f pose, double t);
+  void publishPose(Eigen::Matrix4f newPose, double t);
 };
 
 

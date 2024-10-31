@@ -13,6 +13,7 @@ std::deque<Eigen::Matrix4Xf> vec_scan_F;
 std::deque<double> vec_scan_F_time;
 std::deque<Eigen::Matrix4Xf> vec_scan_R;
 std::deque<double> vec_scan_R_time;
+bool isPubOngoing = false;
 
 void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg, const std::string& topic_name);
 void merge_AND_pub(Eigen::Matrix4Xf scan1, Eigen::Matrix4Xf scan2, double t1, double t2);
@@ -33,7 +34,7 @@ int main(int argc,char **argv) {
         "/R/depth/color/points", 100, 
         [&](const sensor_msgs::PointCloud2::ConstPtr& msg) { callback_scan(msg, "/R/depth/color/points"); });
 
-    
+    ros::Timer timer = nh.createTimer(ros::Duration(0.1), [](const ros::TimerEvent&) {check_data();});
     ros::spin();
 
     return 0;
@@ -50,7 +51,7 @@ void callback_scan(const sensor_msgs::PointCloud2::ConstPtr& msg, const std::str
     pcl::PointCloud<pcl::PointXYZ>::Ptr pc_vx_filtered(new pcl::PointCloud<pcl::PointXYZ>);
     pcl::VoxelGrid<pcl::PointXYZ> voxel_filter;
     voxel_filter.setInputCloud(pc_xyz);
-    voxel_filter.setLeafSize(0.1, 0.1, 0.1);
+    voxel_filter.setLeafSize(0.2, 0.2, 0.2); // 0.1
     voxel_filter.filter(*pc_vx_filtered);
 
     pcl::PassThrough<pcl::PointXYZ> pass;
@@ -161,7 +162,7 @@ void merge_AND_pub(Eigen::Matrix4Xf scan1, Eigen::Matrix4Xf scan2, double t1, do
     // output_msg.header.stamp = ros::Time::now();
     
     // pub them
-    static ros::Publisher pub_mergedPC = ros::NodeHandle().advertise<sensor_msgs::PointCloud2>("/merged_pointcloud", 100);
+    static ros::Publisher pub_mergedPC = ros::NodeHandle().advertise<sensor_msgs::PointCloud2>("/merged_pointcloud2", 100);
     pub_mergedPC.publish(output_msg);
 }
 

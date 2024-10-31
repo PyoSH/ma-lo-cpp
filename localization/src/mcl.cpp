@@ -62,6 +62,10 @@ mcl::mcl(){
     mapCenterY = 0; //[m]
     is1stPose = true;
     predictionCounter = 0;
+
+    canScanWrite = true;
+    isPubOngoing = false;
+
 }
 
 mcl::~mcl(){
@@ -390,7 +394,6 @@ void mcl::updateScan(Eigen::Matrix4Xf scan){
     //  std::cout << "updateData - END" << std::endl;
 }
 
-
 void mcl::updatePredict(Eigen::Matrix4f pose){
     // std::cout << "updatePredict - init" << std::endl;
     auto start_time = std::chrono::high_resolution_clock::now();
@@ -416,35 +419,42 @@ void mcl::updatePredict(Eigen::Matrix4f pose){
     // std::cout << "updatePredict - END" << std::endl;
 }
 
-void mcl::publishPose(Eigen::Matrix4f pose, double t){
-    float x_all(0.0), y_all(0.0);
+void mcl::publishPose(Eigen::Matrix4f newPose, double t){
+    Eigen::Matrix4f diffOdom = odomBefore.inverse()*newPose; // odom After = odom New * diffOdom
 
-    for(auto& p : particles){
-        x_all = x_all + p.pose(0,3) * p.score;
-        y_all = y_all + p.pose(1,3) * p.score;
-    }
-    Eigen::VectorXf weightedMeanPose = tool::eigen2xyzrpy(maxProbParticle.pose);
-    weightedMeanPose(0) = x_all;
-    weightedMeanPose(1) = y_all;
+    // 1. predict with new pose 
+    // float x_all(0.0), y_all(0.0);
+    // for(auto& p : particles){
+    //     x_all = x_all + p.pose(0,3) * p.score;
+    //     y_all = y_all + p.pose(1,3) * p.score;
+    // }
+    Eigen::Matrix4f predictedPose = maxProbParticle.pose * diffOdom;
+    Eigen::VectorXf weightedMeanPose = tool::eigen2xyzrpy(predictedPose);
+    // weightedMeanPose(0) = x_all;
+    // weightedMeanPose(1) = y_all;
     weightedMeanPose(2) = 0;
+
+    
+
     Eigen::VectorXf retVal;
-    Eigen::VectorXf beforePose = tool::eigen2xyzrpy(pose);
+    Eigen::VectorXf beforePose = tool::eigen2xyzrpy(newPose);
     double dist_L2 = sqrt(pow(beforePose(0) - weightedMeanPose(0),2)+pow(beforePose(1) - weightedMeanPose(1),2));
     if (dist_L2 <10.0) retVal = weightedMeanPose;
     else retVal = beforePose;
     
     // std::cout << "pub - odom " <<beforePose(0) << " " << beforePose(1) << " | mcl " << weightedMeanPose(0) << " " << weightedMeanPose(1) << std::endl;
 
+    // 2. publish msg
     nav_msgs::Odometry mcl_msg;
     mcl_msg.header.stamp = ros::Time(t);
     mcl_msg.header.frame_id = "odom";
     mcl_msg.child_frame_id = "base_link";   
 
+    Eigen::Matrix4f eigenRetVal = tool::xyzrpy2eigen(retVal(0), retVal(1), retVal(2), retVal(3), retVal(4), retVal(5));
     mcl_msg.pose.pose.position.x = retVal(0);
     mcl_msg.pose.pose.position.y = retVal(1);
     mcl_msg.pose.pose.position.z = retVal(2); // assume 0
 
-    Eigen::Matrix4f eigenRetVal = tool::xyzrpy2eigen(retVal(0), retVal(1), retVal(2), retVal(3), retVal(4), retVal(5));
     tf::Matrix3x3 rotation_matrix(eigenRetVal(0,0), eigenRetVal(0,1), eigenRetVal(0,2),
                                   eigenRetVal(1,0), eigenRetVal(1,1), eigenRetVal(1,2),
                                   eigenRetVal(2,0), eigenRetVal(2,1), eigenRetVal(2,2)); 
