@@ -110,11 +110,11 @@ void mcl::initializeParticles(){
         particles.emplace_back(currParticle);
     }
     
-    showInMap();
+    // showInMap();
 }
 
 void mcl::prediction(Eigen::Matrix4f diffPose){
-    std::cout << "Predicting..." << m_sync_count << std::endl;
+    // std::cout << "Predicting..." << m_sync_count << std::endl;
     Eigen::VectorXf diff_xyzrpy = tool::eigen2xyzrpy(diffPose); //{x,y,z,R,P,Y} (z, R, P -> assume to 0)
 
     // Using Odometry model to motion model
@@ -137,8 +137,12 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
     double rot2_noise_coeff = odomCovariance[0]*fabs(delta_rot2) + odomCovariance[1]*fabs(delta_trans);
 
     float scoreSum = 0;
+    std::normal_distribution<double> gaussian_distribution(0,1);
+    std::normal_distribution<double> gaussian_distribution_x(0, 1); // x 방향 가우시안
+    std::normal_distribution<double> gaussian_distribution_y(0, 1); // y 방향 가우시안
+    std::uniform_real_distribution<float> theta_pos(-M_PI, M_PI); // -180~180 [deg]
+
     for(int i=0; i<particles.size(); ++i){
-        std::normal_distribution<double> gaussian_distribution(0,1);
 
         delta_trans = delta_trans + gaussian_distribution(gen) * trans_noise_coeff; // 책에서는 뺀다
         delta_rot1 = delta_rot1 + gaussian_distribution(gen) * rot1_noise_coeff; // 책에서는 뺀다
@@ -161,17 +165,10 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
             bool valid_position_found = false;
             int attempts = 0; // 무한 루프 방지를 위한 샘플링 시도 횟수 제한
 
-            while(!valid_position_found && attempts < 20) { // 최대 10번 시도
-                // 가우시안 분포를 사용해 새 위치 샘플링
-                double sigma_x = 1;
-                double sigma_y = 1;
-                std::normal_distribution<double> gaussian_distribution_x(pose_t_plus_1(0,3), sigma_x); // x 방향 가우시안
-                std::normal_distribution<double> gaussian_distribution_y(pose_t_plus_1(1,3), sigma_y); // y 방향 가우시안
-                std::uniform_real_distribution<float> theta_pos(-M_PI, M_PI); // -180~180 [deg]
-
+            while(!valid_position_found && attempts < 10) { // 최대 10번 시도
                 // 가우시안 분포를 사용해 새 위치를 샘플링
-                double sampled_x = gaussian_distribution_x(gen);
-                double sampled_y = gaussian_distribution_y(gen);
+                double sampled_x = pose_t_plus_1(0,3) + gaussian_distribution_x(gen);
+                double sampled_y = pose_t_plus_1(1,3) + gaussian_distribution_y(gen);
                 double sampledTheta = theta_pos(gen); // [deg]
 
                 // 샘플링한 위치의 맵 좌표 계산
@@ -199,7 +196,7 @@ void mcl::prediction(Eigen::Matrix4f diffPose){
     for(int i=0; i<particles.size(); ++i){
         particles.at(i).score = particles.at(i).score/scoreSum; // normalize the score
     }
-    std::cout << "prediction - scoreSum " << scoreSum << std::endl;
+    // std::cout << "prediction - scoreSum " << scoreSum << std::endl;
 
     showInMap();
 }
@@ -224,14 +221,14 @@ void mcl::weightning(Eigen::Matrix4Xf scan){
         }
     }
     
-    std::cout << "weightning - scoreSum " << scoreSum << std::endl;
+    // std::cout << "weightning - scoreSum " << scoreSum << std::endl;
 
     for(int i=0; i<particles.size(); ++i)
         particles.at(i).score /= scoreSum;
 }
 
 void mcl::resampling(){
-    std::cout << "!!!!!Resampling!!!!!"<< m_sync_count << std::endl;
+    // std::cout << "!!!!!Resampling!!!!!"<< m_sync_count << std::endl;
 
     std::vector<double> particleScores;
     std::vector<particle> particleSampled;
@@ -327,7 +324,7 @@ cv::Mat mcl::createLikelihoodField(const cv::Mat& obstacleMap, double sigma_hit)
             sumTerm += likelihoodField.at<float>(i,j);
         }
     }
-    std::cout << "createField sum : " << sumTerm << " | maxTerm " << maxTerm <<std::endl;
+    // std::cout << "createField sum : " << sumTerm << " | maxTerm " << maxTerm <<std::endl;
 
     return likelihoodField;
 }
@@ -375,6 +372,8 @@ std::string mcl::isInside_OGM(const cv::Mat& gridMap, double x_px, double y_px){
 
 void mcl::updateScan(Eigen::Matrix4Xf scan){
     // std::cout << "updateData - init" << std::endl;    
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     weightning(scan);
     predictionCounter++;
     if(predictionCounter == repropagateCountNeeded){
@@ -383,12 +382,19 @@ void mcl::updateScan(Eigen::Matrix4Xf scan){
     }
 
     m_sync_count = m_sync_count +1;
-//  std::cout << "updateData - END" << std::endl;
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+
+    std::cout << "updateScan 실행 시간: " << duration << " ms" << std::endl;
+    //  std::cout << "updateData - END" << std::endl;
 }
 
 
 void mcl::updatePredict(Eigen::Matrix4f pose){
     // std::cout << "updatePredict - init" << std::endl;
+    auto start_time = std::chrono::high_resolution_clock::now();
+
     if(is1stPose){
         odomBefore = pose;
         mapCenterX = pose(0,3);
@@ -403,6 +409,10 @@ void mcl::updatePredict(Eigen::Matrix4f pose){
     prediction(diffOdom); 
     odomBefore = pose;
 
+    auto end_time = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time).count();
+
+    std::cout << "updatePredict 실행 시간: " << duration << " ms" << std::endl;
     // std::cout << "updatePredict - END" << std::endl;
 }
 
@@ -416,13 +426,15 @@ void mcl::publishPose(Eigen::Matrix4f pose, double t){
     Eigen::VectorXf weightedMeanPose = tool::eigen2xyzrpy(maxProbParticle.pose);
     weightedMeanPose(0) = x_all;
     weightedMeanPose(1) = y_all;
-
+    weightedMeanPose(2) = 0;
     Eigen::VectorXf retVal;
     Eigen::VectorXf beforePose = tool::eigen2xyzrpy(pose);
     double dist_L2 = sqrt(pow(beforePose(0) - weightedMeanPose(0),2)+pow(beforePose(1) - weightedMeanPose(1),2));
     if (dist_L2 <10.0) retVal = weightedMeanPose;
     else retVal = beforePose;
     
+    // std::cout << "pub - odom " <<beforePose(0) << " " << beforePose(1) << " | mcl " << weightedMeanPose(0) << " " << weightedMeanPose(1) << std::endl;
+
     nav_msgs::Odometry mcl_msg;
     mcl_msg.header.stamp = ros::Time(t);
     mcl_msg.header.frame_id = "odom";

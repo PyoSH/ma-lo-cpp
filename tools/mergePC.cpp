@@ -130,7 +130,7 @@ void merge_AND_pub(Eigen::Matrix4Xf scan1, Eigen::Matrix4Xf scan2, double t1, do
     float yaw_rad = 0;
     Eigen::Matrix3f rotation = tool::get_rotation_matrix(roll_rad, pitch_rad, yaw_rad);
     tf_2to1.block<3,3>(0,0) << rotation;
-    tf_2to1(0,3) = 0.15;
+    tf_2to1(0,3) = 0.2;
     tf_2to1(1,3) = 0;
     tf_2to1(2,3) = -0.3;
     tf_2to1(3,3) = 1;
