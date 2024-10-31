@@ -162,7 +162,7 @@ void merge_AND_pub(Eigen::Matrix4Xf scan1, Eigen::Matrix4Xf scan2, double t1, do
     // output_msg.header.stamp = ros::Time::now();
     
     // pub them
-    static ros::Publisher pub_mergedPC = ros::NodeHandle().advertise<sensor_msgs::PointCloud2>("/merged_pointcloud2", 100);
+    static ros::Publisher pub_mergedPC = ros::NodeHandle().advertise<sensor_msgs::PointCloud2>("/merged_pointcloud", 100);
     pub_mergedPC.publish(output_msg);
 }
 
