@@ -90,6 +90,7 @@ private:
     cv::Mat createLikelihoodField(const cv::Mat& obstacleMap, double sigma_hit);
     double calculateScanLikelihood(const Eigen::Matrix4Xf scan, const Eigen::Matrix4f pose);
     std::string isInside_OGM(const cv::Mat& gridMap, double x_px, double y_px);
+    double calculateVariance(const std::vector<mcl::particle>& particles, double mean_x, double mean_y);
 
 public:
   mcl();
