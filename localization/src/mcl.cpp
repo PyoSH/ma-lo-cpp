@@ -4,7 +4,7 @@ mcl::mcl(){
     m_sync_count = 0;
     gen.seed(rd());
 
-    gridMap_show = cv::imread("/home/pyo/map_new.png", cv::IMREAD_GRAYSCALE);
+    gridMap_show = cv::imread("/home/kriso/map_new.png", cv::IMREAD_GRAYSCALE);
     pxCenterX = 200/2;
     pxCenterY = gridMap_show.rows - 200/2 - 200;
 
@@ -36,7 +36,7 @@ mcl::mcl(){
     double sigma_hit = 5.0;
     likelihoodField = createLikelihoodField(gridMap_show, sigma_hit);
 
-    numOfParticle = 1000; // 2500
+    numOfParticle = 700; // 2500
     minOdomDistance = 0.05; //[m]
     minOdomAngle = 5; // [deg]
     repropagateCountNeeded = 20; // [num]
@@ -420,30 +420,44 @@ void mcl::updatePredict(Eigen::Matrix4f pose){
 }
 
 void mcl::publishPose(Eigen::Matrix4f newPose, double t){
-    Eigen::Matrix4f diffOdom = odomBefore.inverse()*newPose; // odom After = odom New * diffOdom
+    // 0. get difference between computed pose & current pose
+    Eigen::Matrix4f newPose_moved = newPose;
+    newPose_moved(0,3) = newPose(0,3) - mapCenterX;
+    newPose_moved(1,3) = newPose(1,3) - mapCenterY;
+    Eigen::Matrix4f diffOdom = odomBefore.inverse()*newPose_moved; // odom After = odom New * diffOdom
 
     // 1. predict with new pose 
-    // float x_all(0.0), y_all(0.0);
-    // for(auto& p : particles){
-    //     x_all = x_all + p.pose(0,3) * p.score;
-    //     y_all = y_all + p.pose(1,3) * p.score;
-    // }
-    Eigen::Matrix4f predictedPose = maxProbParticle.pose * diffOdom;
-    Eigen::VectorXf weightedMeanPose = tool::eigen2xyzrpy(predictedPose);
-    // weightedMeanPose(0) = x_all;
-    // weightedMeanPose(1) = y_all;
-    weightedMeanPose(2) = 0;
-
+    Eigen::Vector3f weightedTranslation = Eigen::Vector3f::Zero();
+    Eigen::Quaternionf weightedRotation(0,0,0,0);
     
+    float x_all(0.0), y_all(0.0), theta_all(0.0);
+    for(auto& p : particles){
+        weightedTranslation += p.pose.block<3,1>(0,3) * p.score;
 
-    Eigen::VectorXf retVal;
-    Eigen::VectorXf beforePose = tool::eigen2xyzrpy(newPose);
-    double dist_L2 = sqrt(pow(beforePose(0) - weightedMeanPose(0),2)+pow(beforePose(1) - weightedMeanPose(1),2));
-    if (dist_L2 <10.0) retVal = weightedMeanPose;
-    else retVal = beforePose;
+        Eigen::Quaternionf rotation(p.pose.block<3,3>(0,0));
+        weightedRotation.coeffs() += rotation.coeffs() * p.score;
+    }
+    weightedRotation.normalize();
+
+    double variance = calculateVariance(particles, x_all, y_all);
+    double varianceThreshold = 0.5;
+    Eigen::Matrix4f retPose = maxProbParticle.pose;
+    if(variance < varianceThreshold){ // converged, use maxProbParticle pose
+        std::cout << "PUB pose - converged | variance: " << variance <<std::endl;
+
+    }else if(varianceThreshold < variance && variance < 200){ // diverged, use weightedSum pose
+        std::cout << "PUB pose - diverged | variance: " << variance <<std::endl;
+        retPose.block<3,1>(0,3) = weightedTranslation;
+        retPose.block<3,3>(0,0) = weightedRotation.toRotationMatrix();
+    }else{
+        std::cout << "PUB pose - no dap | variance: " << variance <<std::endl;
+        retPose = newPose;
+    }
+
+    // retPose = retPose * diffOdom;
+    Eigen::VectorXf weightedMeanPose = tool::eigen2xyzrpy(retPose);
+    Eigen::VectorXf retVal = weightedMeanPose;
     
-    // std::cout << "pub - odom " <<beforePose(0) << " " << beforePose(1) << " | mcl " << weightedMeanPose(0) << " " << weightedMeanPose(1) << std::endl;
-
     // 2. publish msg
     nav_msgs::Odometry mcl_msg;
     mcl_msg.header.stamp = ros::Time(t);
@@ -465,6 +479,20 @@ void mcl::publishPose(Eigen::Matrix4f newPose, double t){
     mcl_msg.pose.pose.orientation.z =  q.z();
     mcl_msg.pose.pose.orientation.w =  q.w();
 
-    static ros::Publisher pub_MCL = ros::NodeHandle().advertise<nav_msgs::Odometry>("/mcl", 1);
+    static ros::Publisher pub_MCL = ros::NodeHandle().advertise<nav_msgs::Odometry>("/mcl2", 1);
     pub_MCL.publish(mcl_msg);
+}
+
+double mcl::calculateVariance(const std::vector<mcl::particle>& particles, double mean_x, double mean_y){
+    double variance = 0.0;
+    double total_weight = 0.0;
+
+    for (const auto& particle:particles){
+        double dx = particle.pose(0,3) - mean_x;
+        double dy = particle.pose(1,3) - mean_y;
+        variance += particle.score * (dx*dx + dy*dy);
+        total_weight += particle.score;
+    }
+
+    return variance/total_weight;
 }
