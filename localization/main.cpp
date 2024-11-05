@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
   ros::Subscriber sub_pose = nh.subscribe<nav_msgs::Odometry>("/b1_controller/odom", 100, callback_pose);
 
   // 타이머 설정 - 호출
-  ros::Timer timer = nh.createTimer(ros::Duration(0.12), timerCallback);
+  ros::Timer timer = nh.createTimer(ros::Duration(0.2), timerCallback);
 
   ros::spin();
 
