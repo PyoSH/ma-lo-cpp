@@ -422,39 +422,10 @@ void mcl::updatePredict(Eigen::Matrix4f pose){
 void mcl::publishPose(Eigen::Matrix4f newPose, double t){
     // 0. get difference between computed pose & current pose
     Eigen::Matrix4f newPose_moved = newPose;
-    newPose_moved(0,3) = newPose(0,3) - mapCenterX;
-    newPose_moved(1,3) = newPose(1,3) - mapCenterY;
     Eigen::Matrix4f diffOdom = odomBefore.inverse()*newPose_moved; // odom After = odom New * diffOdom
 
     // 1. predict with new pose 
-    Eigen::Vector3f weightedTranslation = Eigen::Vector3f::Zero();
-    Eigen::Quaternionf weightedRotation(0,0,0,0);
-    
-    float x_all(0.0), y_all(0.0), theta_all(0.0);
-    for(auto& p : particles){
-        weightedTranslation += p.pose.block<3,1>(0,3) * p.score;
-
-        Eigen::Quaternionf rotation(p.pose.block<3,3>(0,0));
-        weightedRotation.coeffs() += rotation.coeffs() * p.score;
-    }
-    weightedRotation.normalize();
-
-    double variance = calculateVariance(particles, x_all, y_all);
-    double varianceThreshold = 0.5;
-    Eigen::Matrix4f retPose = maxProbParticle.pose;
-    if(variance < varianceThreshold){ // converged, use maxProbParticle pose
-        std::cout << "PUB pose - converged | variance: " << variance <<std::endl;
-
-    }else if(varianceThreshold < variance && variance < 200){ // diverged, use weightedSum pose
-        std::cout << "PUB pose - diverged | variance: " << variance <<std::endl;
-        retPose.block<3,1>(0,3) = weightedTranslation;
-        retPose.block<3,3>(0,0) = weightedRotation.toRotationMatrix();
-    }else{
-        std::cout << "PUB pose - no dap | variance: " << variance <<std::endl;
-        retPose = newPose;
-    }
-
-    // retPose = retPose * diffOdom;
+    Eigen::Matrix4f retPose = maxProbParticle.pose * diffOdom;
     Eigen::VectorXf weightedMeanPose = tool::eigen2xyzrpy(retPose);
     Eigen::VectorXf retVal = weightedMeanPose;
     
