@@ -24,10 +24,15 @@ pages={503-517}
 
 
 ## Mapping 
+<p align='center'>
+  <img src="https://github.com/user-attachments/assets/21c62066-1cec-4064-82e5-b38d203d1a48">
+</p>
 
 ## Localization (MCL implement)
 
-
+<p align='center'>
+  <img src="https://github.com/user-attachments/assets/e9ad3e9d-7c18-47e7-8da5-5d75158244ca">
+</p>
 
 ### Real-Time Implementation
 기존) deque 자료구조로 발행된 시간을 비교 후 사용하는 방식  
