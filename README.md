@@ -1,8 +1,14 @@
-# MApping-Localization in CPP for quadruped navigation
+# MApping-LOcalization in CPP for quadruped navigation
 ## Intro
 임형태 박사님의 [카이스트 수업자료](https://github.com/LimHyungTae/mcl_2d_lidar_ros) 를 기반으로 만들었으나, ROS 구현 과정에서 많은 부분을 변경.  
 2D LiDAR 대신 두 개의 리얼센스 스테레오 카메라-RS 435, RS 455 를 사용.  
 
+<p align='center'>
+  <img src="https://github.com/user-attachments/assets/08eb3034-f336-49a3-a8be-b0bd5c90dc72">
+</p>
+
+
+For more info, plz read the mapping & localization section in the article below.
 ```
 @article{ART003222771,
 author={구본학 and 이승연 and 표승현 and 전봉환 and 박대길},
@@ -20,9 +26,7 @@ pages={503-517}
 ## Mapping 
 
 ## Localization (MCL implement)
-<p align='center'>
-  <img src="https://github.com/user-attachments/assets/08eb3034-f336-49a3-a8be-b0bd5c90dc72">
-</p>
+
 
 
 ### Real-Time Implementation
