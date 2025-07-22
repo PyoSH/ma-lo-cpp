@@ -4,7 +4,7 @@
 2D LiDAR 대신 두 개의 리얼센스 스테레오 카메라-RS 435, RS 455 를 사용.  
 ## Mapping 
 
-## Localization (Monte Carlo Localization implementation)
+## Localization (MCL implement)
 
 ### Real-Time Implementation
 기존) deque 자료구조로 발행된 시간을 비교 후 사용하는 방식  
